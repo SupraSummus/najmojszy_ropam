@@ -29,7 +29,13 @@ która dopisuje rejestry UART0 do urządzeń przydzielanych procesom.
 Sprawdzone na płytce: program startuje,
 a zwykłe otwarcie portu (DTR i RTS włączone razem) nie restartuje układu.
 Ręczne wyłączenie DTR i RTS przed otwarciem portu restartuje układ.
-Przepływ bajtów do centrali: do sprawdzenia po podłączeniu.
+
+Sprawdzone z centralą (D7 przez dzielnik, równolegle z kablem USB-MGSM):
+XIAO odbiera to samo co kabel, bajt w bajt,
+zarówno `C` w spoczynku, jak i całą odpowiedź XMODEM na komendę `id`.
+Można więc go używać jako podsłuchu sesji Managera.
+Nadawanie z D6 do centrali: do sprawdzenia bez kabla USB-MGSM,
+bo dwa nadajniki na jednej linii by się kłóciły.
 
 ### Połączenia
 
