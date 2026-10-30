@@ -55,7 +55,7 @@ po niej przychodzi druga transmisja z odpowiedzią modemu na komendę AT ✅.
 | `0x038` | 8 | dwie wartości 32-bitowe ❓ |
 | `0x040` | 2 | wartość 16-bitowa ❓ |
 | `0x044` | 8 | struktura chroniona muteksem ❓ |
-| `0x04C` | 32 | stan stref: 4 × 8 B ❓ |
+| `0x04C` | 32 | stan stref: 4 × 8 B; młodsze 4 bity = stan (3 = rozbrojona 🔌, 5 = odliczanie wyjścia ❓), bit 10 = czuwanie, bit 11 = noc ✅ |
 | `0x06C` | 12 | ❓ |
 | `0x078` | 64 | ❓ |
 | `0x0B8` | 16 | flagi systemowe, w tym tryb lokalny/zdalny ✅ |
@@ -91,5 +91,7 @@ Na podstawie 183 kolejnych odczytów wykonanych przez Managera 🔌:
 - maska `0x000` zmienia się, gdy czujki widzą ruch,
 - pola `0x0C8`–`0x0D5` zmieniają się niemal przy każdym odczycie,
 - wartości linii wejść (`0x0DC` …) wahają się,
-- wejścia, do których nie podłączono modułu, mają stały stan domyślny,
-  który maska pokazuje jako naruszenie albo sabotaż ❓.
+- wejścia nieużywane (z domyślną nazwą i bez strefy) mają stały stan,
+  który maski pokazują jako stan 1 albo 3 🔌,
+- połączenie z konfiguracją daje czytelny podgląd:
+  `tools/ropam_config.py KONFIGURACJA stan PLIK_STANU`.

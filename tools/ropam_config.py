@@ -10,6 +10,7 @@ Użycie:
     ropam_config.py PLIK wyjscia
     ropam_config.py PLIK strefy
     ropam_config.py PLIK zrzut NAZWA_SEKCJI    # surowe bajty sekcji (hex)
+    ropam_config.py PLIK stan PLIK_STANU       # stan z `ropam_serwis.py stan`
 """
 import struct
 import sys
@@ -119,6 +120,37 @@ def show_zones(cfg):
               f" na wyjście {exit_} s")
 
 
+def show_status(cfg, status):
+    """Stan na żywo (zapis z `ropam_serwis.py PORT stan PLIK`) z nazwami."""
+    inputs = cfg.records("INPUT", 168)
+    outputs = cfg.records("OUT", 224)
+    zones = cfg.records("STREFY", 44)
+    masks = [int.from_bytes(status[o:o + 8], "little") for o in (0, 8)]
+    for label, mask in zip(("naruszone", "stan 3 (sabotaż?)"), masks):
+        # Tylko wejścia przypisane do jakiejś strefy albo nazwane inaczej
+        # niż domyślnie mają sens; resztę raportujemy zbiorczo.
+        named = [n for n in bits(mask, count=48)
+                 if not text(inputs[int(n) - 1][:0x16]).startswith("Wejscie ")]
+        rest = len(bits(mask, count=48)) - len(named)
+        print(f"wejścia {label}:")
+        for n in named:
+            print(f"  I{n} {text(inputs[int(n) - 1][:0x16])}")
+        if rest:
+            print(f"  (+{rest} nieużywanych wejść)")
+    out_mask = int.from_bytes(status[0x30:0x34], "little")
+    print("wyjścia włączone:")
+    for n in bits(out_mask, count=32):
+        print(f"  O{n} {text(outputs[int(n) - 1][:0x14])}")
+    print("strefy:")
+    for z in range(4):
+        word = int.from_bytes(status[0x4C + 8 * z:0x50 + 8 * z], "little")
+        state = word & 0xF
+        flags = [name for bit, name in ((10, "czuwanie"), (11, "noc"))
+                 if word >> bit & 1]
+        print(f"  S{z + 1} {text(zones[z][:0x10]):16s} stan {state}"
+              f" {' '.join(flags)}")
+
+
 def main():
     if len(sys.argv) < 3:
         sys.exit(__doc__)
@@ -133,6 +165,9 @@ def main():
         show_outputs(cfg)
     elif cmd == "strefy":
         show_zones(cfg)
+    elif cmd == "stan" and len(sys.argv) == 4:
+        with open(sys.argv[3], "rb") as f:
+            show_status(cfg, f.read())
     elif cmd == "zrzut" and len(sys.argv) == 4:
         sec = cfg.section(sys.argv[3])
         for i in range(0, len(sec), 16):
