@@ -56,9 +56,9 @@ undefined4 svc_dispatch(void)
   case 1:
     local_318[0] = 0;
     local_318[1] = 0x22;
-    local_318[2] = (byte)DAT_a001fff4;
+    local_318[2] = (byte)g_boot_version;
     local_318[3] = 0x14;
-    local_314 = DAT_a00002fc;
+    local_314 = g_panel_id;
     local_310 = (undefined1)DAT_a0000300;
     uStack_30f = (undefined1)((uint)DAT_a0000300 >> 8);
     uStack_30e = (undefined2)((uint)DAT_a0000300 >> 0x10);

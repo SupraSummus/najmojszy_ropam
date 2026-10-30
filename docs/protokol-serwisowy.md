@@ -76,13 +76,25 @@ Pozostałe są w `switch` w `FUN_9d03c3f0`.
 
 | Kod | Działanie | Pewność |
 |---|---|---|
-| `0x01` | identyfikacja: 12 B (`00 22 xx 14` + 8 B), zapisuje w dzienniku zdarzenie programowania | ✅ |
+| `0x01` | identyfikacja: 12 B, opis niżej; zapisuje w dzienniku zdarzenie programowania | ✅ sprawdzone na sprzęcie |
 | `0x02` | zapis konfiguracji: blob 52 412 B (v3.4) z CRC-16/XMODEM, zapis do pliku `0:config.rpm` i kopii `0:cfgcpy.rpm`; odpowiedź: status | ✅ |
 | `0x03` | odczyt konfiguracji: argument to 6-znakowy kod serwisowy; przy zgodności wysyła `0:config.rpm`, inaczej status 2 | ✅ |
 | `0x07` | odczyt bloku 198 B (`0xC6`) | ✅ |
 | `0x08` | odczyt tablicy modułów magistrali, 198 B | ❓ |
 | `0x12` | wpisanie PIN-u karty SIM do modemu (`AT+CPIN`), opcja „WPISZ KOD PIN” z instrukcji | ✅ |
 | `0x04`, `0x05`, `0x0D`, `0x0F`–`0x31`, `0x4A`–`0x4C` | do rozpracowania | |
+
+### Odpowiedź na `0x01`
+
+| Bajt | Znaczenie |
+|---|---|
+| 0 | `0x00` |
+| 1 | wersja firmware'u × 10 (np. `0x22` = 3.4); w kodzie stała `FW_VERSION` |
+| 2 | wersja × 10 z końca RAM-u, najpewniej bootloadera ❓ |
+| 3 | `0x14`, znaczenie nieznane |
+| 4–11 | unikalne ID centrali (8 B) |
+
+Odpowiedź przychodzi jednym blokiem 64 B (nagłówek `0x19`) z dopełnieniem.
 
 Rozmiar konfiguracji jest zaszyty w firmware'ze (`0x9d06b79c`),
 więc może się różnić między wersjami.

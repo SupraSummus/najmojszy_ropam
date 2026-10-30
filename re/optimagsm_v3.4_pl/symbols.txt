@@ -75,6 +75,10 @@
 0x9d03c3f0 f svc_dispatch        Odbiera pakiet komendy i wykonuje komendę wg pierwszego bajtu.
 0x9d016a04 f svc_dispatch_ext    Komendy 0x32–0x45 z tablicy svc_ext_handlers, gdy ustawiona flaga. ❓ tryb ON-LINE
 0xa001738c d svc_ext_handlers    Tablica wskaźników obsługi komend 0x32–0x45.
+0x9d06d94c d FW_VERSION          Wersja firmware'u × 10 (34 = 3.4); w odpowiedzi na komendę 0x01 jako bajt 1.
+0xa001fff4 d g_boot_version      Wersja × 10 zostawiona na końcu RAM-u, najpewniej przez bootloader. ❓
+0xa00002fc d g_panel_id          Unikalne ID centrali, 8 B ("ID centrali:%02X…"); bajty 4–11 odpowiedzi na komendę 0x01.
+0x9d011470 f status_header       Składa nagłówek statusu: '*', '4', wersja firmware'u, wersja z g_boot_version, maska modułów. ❓
 0x9d03c2dc f svc_send_status     Odsyła 4-bajtowy status (little-endian).
 0x9d03c374 f svc_check_code      Porównuje 6 bajtów z kodem serwisowym z konfiguracji.
 0xa0015d25 d g_service_code      Kod serwisowy (6 B).
