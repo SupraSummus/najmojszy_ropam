@@ -37,5 +37,6 @@ Co wiemy, a czego nie, opisują pliki w [`docs/`](docs/):
   skąd to wszystko wiemy.
 
 Zrozumiany kod firmware'u (nazwy, komentarze, czytelny C) jest w [`re/`](re/).
+Oprogramowanie na ESP32 (na razie bierny podsłuch magistrali) jest w [`esp32/`](esp32/).
 
 Konwencje projektu są w [`CLAUDE.md`](CLAUDE.md).
