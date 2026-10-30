@@ -17,7 +17,8 @@ Użycie:
         HASŁO: 6 znaków, hex:xxxxxxxxxxxx albo plik:ŚCIEŻKA (hex w pliku)
     ROPAM_DEBUG=1 wypisuje każdy bajt na stderr.
 
-PORT to np. /dev/ttyUSB0 albo socket://ADRES:2323 (most Wi-Fi z esp32/most).
+PORT to np. /dev/ttyUSB0 (kabel USB-MGSM), /dev/ttyACM0 (most na XIAO, esp32/)
+albo socket://ADRES:PORT (dowolny most TCP).
 Wymaga pyserial.
 """
 import os
