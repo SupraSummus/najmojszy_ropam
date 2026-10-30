@@ -30,7 +30,7 @@ Sprawdzone na płytce: program startuje,
 a zwykłe otwarcie portu (DTR i RTS włączone razem) nie restartuje układu.
 Ręczne wyłączenie DTR i RTS przed otwarciem portu restartuje układ.
 
-Sprawdzone z centralą (D7 przez dzielnik, równolegle z kablem USB-MGSM):
+Sprawdzone z centralą (D7 równolegle z kablem USB-MGSM):
 XIAO odbiera to samo co kabel, bajt w bajt,
 zarówno `C` w spoczynku, jak i całą odpowiedź XMODEM na komendę `id`.
 Można więc go używać jako podsłuchu sesji Managera.
@@ -46,15 +46,15 @@ Kabel USB-MGSM (FT232BL) nadaje do centrali w logice 3,3 V:
 na RX centrali w spoczynku jest ok. 3,4 V.
 Dlatego D6 przez 1 kΩ może zostać wpięty nawet razem z kablem;
 przy kolizji nadajników płynie najwyżej ok. 3,4 mA.
-Poziom TX centrali: do zmierzenia.
-Dzielnik 10 kΩ / 20 kΩ daje z 3,3 V ok. 2,2 V,
-czyli mniej niż próg stanu wysokiego ESP32-C6 (0,75 × 3,3 V ≈ 2,5 V);
-działa, ale na granicy, więc przy 3,3 V lepszy jest sam opornik 1 kΩ.
+TX centrali też pracuje w logice 3,3 V (w spoczynku ok. 3,2 V),
+więc D7 łączymy przez sam opornik 1 kΩ, bez dzielnika.
+Dzielnik 10 kΩ / 20 kΩ dawałby ok. 2,2 V,
+czyli mniej niż próg stanu wysokiego ESP32-C6 (0,75 × 3,3 V ≈ 2,5 V).
 
 | Gniazdo RJ12 | XIAO ESP32-C6 |
 |---|---|
 | GND | GND |
-| TX centrali | **D7** (GPIO17, odbiór) przez 1 kΩ, jeśli linia ma 3,3 V, albo przez dzielnik 10 kΩ / 20 kΩ do GND, jeśli 5 V |
+| TX centrali | **D7** (GPIO17, odbiór) przez 1 kΩ |
 | RX centrali | **D6** (GPIO16, nadawanie) przez 1 kΩ |
 
 TX centrali rozpoznasz po tym, że w spoczynku nadaje `C` co 2 s:
