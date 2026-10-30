@@ -8,12 +8,15 @@ Celowo nie ma tu komend 0x26 i 0x2F: restartują centralę.
 
 Każda komenda włącza w centrali flagę sesji serwisowej na ok. 1,5 min,
 w czasie której część zdarzeń jest pomijana (docs/stan-centrali.md).
+Klient gasi ją od razu po każdej komendzie (end_session);
+ROPAM_ZOSTAW_SESJE=1 to wyłącza.
 
 Użycie:
     ropam_serwis.py PORT nasluch [SEKUNDY]   # pokazuje, co nadaje centrala
     ropam_serwis.py PORT id                  # komenda 0x01
     ropam_serwis.py PORT stan [PLIK]         # komenda 0x24 (stan na żywo)
     ropam_serwis.py PORT konfiguracja HASŁO PLIK   # komenda 0x03
+    ropam_serwis.py PORT koniec              # od razu kończy sesję serwisową
         HASŁO: 6 znaków, hex:xxxxxxxxxxxx albo plik:ŚCIEŻKA (hex w pliku)
     ROPAM_DEBUG=1 wypisuje każdy bajt na stderr.
 
@@ -187,6 +190,25 @@ def strip_padding(data):
     return data[:i] if i >= 0 and not any(data[i + 1:]) else data
 
 
+def end_session(port, timeout=10):
+    """Gasi flagę sesji serwisowej bez czekania ok. 1,5 min.
+
+    Flaga gaśnie po trzech kolejnych nieudanych odbiorach komendy
+    (task_service), a odbiór przerwany przez nadawcę dwoma CAN
+    kończy się od razu ACK-iem (xmodem_receive).
+    Następne zaproszenie 'C' przychodzi wtedy natychmiast.
+    """
+    if wait_fresh_invite(port, timeout) is not True:
+        raise TimeoutError("centrala nie wysłała 'C'")
+    for n in range(3):
+        if n:
+            if wait_for(port, {CRC_REQ}, 3) is None:
+                raise TimeoutError("brak 'C' po przerwaniu")
+        write(port, bytes([CAN, CAN]))
+        if wait_for(port, {ACK}, 2) != ACK:
+            raise IOError("centrala nie potwierdziła przerwania")
+
+
 STATUS_SIZE = 1100
 
 
@@ -206,6 +228,8 @@ def print_status(data):
     analog = [int.from_bytes(data[0xDC + 2 * i:0xDE + 2 * i], "little")
               for i in range(48)]
     print("wartości linii wejść (surowe):", analog)
+    flags = int.from_bytes(data[0xCE:0xD0], "little")
+    print("sesja serwisowa przed tym odczytem:", "tak" if flags & 2 else "nie")
 
 
 def main():
@@ -254,8 +278,14 @@ def main():
         with open(sys.argv[4], "wb") as f:
             f.write(data)
         print(f"zapisano {len(data)} B")
+    elif cmd == "koniec":
+        end_session(port)
+        print("sesja serwisowa zakończona")
+        return
     else:
         sys.exit(__doc__)
+    if cmd != "nasluch" and os.environ.get("ROPAM_ZOSTAW_SESJE") != "1":
+        end_session(port)
 
 
 if __name__ == "__main__":

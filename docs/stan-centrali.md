@@ -23,6 +23,29 @@ Póki flaga jest ustawiona, centrala zachowuje się inaczej ✅, m.in.:
 - odpytuje koncentrator magistrali w trybie podglądu.
 
 To jest „tryb ON-LINE” z instrukcji, w którym centrala „nie wykonuje swoich standardowych funkcji”.
+
+### Zakończenie sesji bez czekania
+
+Centrala nie wykrywa, czy kabel jest wpięty;
+o trybie ON-LINE decyduje tylko ta flaga,
+więc do powrotu do normalnej pracy nie trzeba nic odłączać.
+Flagę można zgasić od razu ✅ 🔌:
+nieudany odbiór kończy się natychmiast,
+gdy nadawca przerwie go dwoma `CAN` (centrala odpowiada `ACK`
+i od razu wysyła następne zaproszenie `C`),
+więc trzy razy `C` → `CAN CAN` → `ACK` to trzy puste cykle w ok. 35 ms.
+Restart (`0x2F`), którym kończy sesję Manager, nie jest do tego potrzebny.
+
+Sprawdzone na sprzęcie przez pole `0x0CE` odpowiedzi `0x24`
+(odpowiedź pokazuje flagę sprzed obsługi tej komendy):
+po `0x01` flaga jest ustawiona, po `0x01` i trzech przerwaniach zgaszona.
+`tools/ropam_serwis.py` robi to sam po każdej komendzie
+(polecenie `koniec` robi tylko to).
+
+Zapis konfiguracji (`0x02`) też nie wymaga restartu:
+centrala od razu wczytuje nową konfigurację,
+przelicza wejścia i rozsyła ustawienia panelom TPR ✅.
+Czy wszystkie ustawienia (np. modemu) działają bez restartu, nie wiemy ❓.
 **Wniosek dla bramki:** stałe odpytywanie `0x24` trzymałoby centralę w sesji serwisowej.
 Do okazjonalnego podglądu się nada,
 ale stała integracja powinna iść inną drogą (magistrala RopamNET albo AP-IP).
@@ -59,7 +82,7 @@ po niej przychodzi druga transmisja z odpowiedzią modemu na komendę AT ✅.
 | `0x06C` | 12 | ❓ |
 | `0x078` | 64 | ❓ |
 | `0x0B8` | 16 | flagi systemowe, w tym tryb lokalny/zdalny ✅ |
-| `0x0C8` | 8 | zmienia się przy każdym odczycie (licznik?) ❓ |
+| `0x0C8` | 8 | kopia RAM-u od `0xA0000154`: bajty 0–3 zmieniają się przy każdym odczycie (licznik ❓), pod `0x0CE` u16 `g_sys_flags` (bit 1 = sesja serwisowa) ✅ 🔌 |
 | `0x0D0` | 8 | czas ❓ |
 | `0x0D8` | 4 | ❓ |
 
