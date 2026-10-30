@@ -93,10 +93,12 @@ def wait_fresh_invite(port, timeout, quiet=0.5):
     Zaległe bajty z przerwanych sesji (seria 'C', CAN-y) potrafią dotrzeć
     nawet po reset_input_buffer(); prawdziwe zaproszenie to pojedyncze 'C'
     co 2 s, więc przed nim linia milczy.
+    Zwraca True albo liczbę bajtów odebranych bez ciszy przed 'C'.
     """
     port.reset_input_buffer()
     end = time.monotonic() + timeout
     last = time.monotonic()
+    seen = 0
     while time.monotonic() < end:
         b = read_byte(port, 0.1)
         now = time.monotonic()
@@ -105,12 +107,20 @@ def wait_fresh_invite(port, timeout, quiet=0.5):
         if b == CRC_REQ and now - last >= quiet:
             return True
         last = now
-    return False
+        seen += 1
+    return seen
 
 
 def send(port, data, timeout=10):
     """Wysyła dane XMODEM-em do centrali (centrala zaczyna od 'C')."""
-    if not wait_fresh_invite(port, timeout):
+    invite = wait_fresh_invite(port, timeout)
+    if invite is not True:
+        if invite > 10 * timeout:
+            # Zob. docs/protokol-serwisowy.md, „Objaw: centrala słyszy własne echo”.
+            raise TimeoutError(
+                f"centrala nadaje bez przerwy ({invite} B w {timeout} s): "
+                "najpewniej słyszy własne echo, "
+                "więc nasz nadajnik nie steruje jej linią RX")
         raise TimeoutError("centrala nie wysłała 'C'")
     head, size = block_size(len(data))
     for n, off in enumerate(range(0, max(len(data), 1), size), 1):

@@ -34,8 +34,14 @@ Sprawdzone z centralą (D7 równolegle z kablem USB-MGSM):
 XIAO odbiera to samo co kabel, bajt w bajt,
 zarówno `C` w spoczynku, jak i całą odpowiedź XMODEM na komendę `id`.
 Można więc go używać jako podsłuchu sesji Managera.
-Nadawanie z D6 do centrali: do sprawdzenia
-(kabel USB-MGSM może zostać wpięty, byle w tym czasie nie nadawał).
+Nadawanie z D6 do centrali: jeszcze nie działa.
+Przy pierwszej próbie (kabel USB-MGSM odłączony od komputera)
+centrala słyszała własne echo
+([`docs/protokol-serwisowy.md`](../docs/protokol-serwisowy.md#objaw-centrala-słyszy-własne-echo)),
+choć D6 nadawał i w spoczynku trzymał stan wysoki
+(sprawdzone programem `ropam-piny`, niżej).
+Coś silniejszego niż D6 za opornikiem 1 kΩ steruje więc linią RX centrali,
+albo D6 do niej nie dochodzi; zob. „Diagnostyka”.
 
 ### Połączenia
 
@@ -46,6 +52,8 @@ Kabel USB-MGSM (FT232BL) nadaje do centrali w logice 3,3 V:
 na RX centrali w spoczynku jest ok. 3,4 V.
 Dlatego D6 przez 1 kΩ może zostać wpięty nawet razem z kablem;
 przy kolizji nadajników płynie najwyżej ok. 3,4 mA.
+Nadawać przez XIAO da się jednak tylko bez kabla:
+jego nadajnik trzyma linię RX centrali mocniej niż D6 za opornikiem.
 TX centrali też pracuje w logice 3,3 V (w spoczynku ok. 3,2 V),
 więc D7 łączymy przez sam opornik 1–10 kΩ, bez dzielnika.
 Dzielnik 10 kΩ / 20 kΩ dawałby ok. 2,2 V,
@@ -67,6 +75,33 @@ nie ma w nim bajtów nagłówków XMODEM ani CAN, więc centrala go pomija.
 
 Każda komenda serwisowa włącza w centrali tryb ON-LINE na ok. 1,5 min
 ([`docs/stan-centrali.md`](../docs/stan-centrali.md)).
+
+## Diagnostyka
+
+`rvuos/ropam-piny.c` wypisuje, jak ROM zostawił GPIO16 i GPIO17
+(IO MUX, matryca GPIO, UART0),
+i przez ok. 50 ms liczy zmiany stanu obu wyprowadzeń.
+Niczego nie zmienia ani nie nadaje; po nim trzeba wgrać z powrotem most.
+
+```sh
+esp32/rvuos/zbuduj.sh ropam-piny wgraj
+esp32/rvuos/zbuduj.sh ropam-most wgraj
+```
+
+Po starcie z flasha obie nóżki mają w IO MUX funkcję 0,
+czyli bezpośrednio U0TXD i U0RXD, z podciąganiem.
+
+Gdy centrala słyszy własne echo
+(`ropam_serwis.py` mówi wtedy „centrala nadaje bez przerwy”),
+po kolei:
+
+1. kabel USB-MGSM musi być odłączony od żył gniazda, nie tylko od komputera:
+   niezasilony FT232BL zasila się przez diody wejścia z TX centrali
+   i może oddawać sygnał na RX ❓;
+2. miernikiem: ciągłość od wolnego końca opornika D6 do żyły RX centrali;
+3. przy wszystkim odłączonym: między żyłami TX i RX nie może być zwarcia;
+4. przy wgranym moście i odłączonym kablu
+   na żyle RX centrali powinno być stałe ok. 3,3 V (spoczynek D6).
 
 ## Dalej
 

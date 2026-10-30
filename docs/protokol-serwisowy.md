@@ -12,7 +12,9 @@ Klient: [`tools/ropam_serwis.py`](../tools/ropam_serwis.py).
 
 - UART4 mikrokontrolera, w kodzie „port 2” ✅,
   najpewniej wyprowadzony na gniazdo RJ12 `RS232TTL` ❓.
-- 115200 b/s ✅, 8N1 ❓, poziomy TTL 0/5 V.
+- 115200 b/s ✅, 8N1 ❓,
+  poziomy logiczne 3,3 V w obu kierunkach
+  (zmierzone: TX centrali ok. 3,2 V, RX przy wpiętym kablu USB-MGSM ok. 3,4 V) ✅.
 
 ## Kto zaczyna
 
@@ -29,6 +31,35 @@ To najprostszy test, że jesteśmy na właściwym porcie i z właściwą prędko
 **Potwierdzone na sprzęcie** (kabel USB-MGSM, FTDI, 115200 b/s, sam odbiór):
 centrala w normalnej pracy nadaje `0x43` co 2 sekundy.
 Potwierdza to port (UART4 na gnieździe RJ12), prędkość i działanie zadania serwisowego.
+
+### Objaw: centrala słyszy własne echo
+
+Jeśli RX centrali dostaje z powrotem to, co nadaje jej TX,
+zamiast `C` co 2 s na linii jest ok. 950 B/s w powtarzającym się cyklu 21 bajtów:
+
+```
+43 ×16, 18 18 18, 43, 06
+```
+
+Odbiornik XMODEM (`xmodem_receive`) wyjaśnia go co do bajtu ✅:
+
+1. centrala wysyła `C` i od razu odbiera echo `C`,
+   którego nie zna, więc liczy próbę jako nieudaną;
+2. po 16 próbach wysyła `CAN CAN CAN` i kończy odbiór;
+3. następny odbiór zaczyna od `C`,
+   a odbiera echo `CAN CAN`, czyli przerwanie od nadawcy,
+   na które odpowiada `ACK`.
+
+Tempo (bajt na ok. 1 ms) wyznacza takt systemu,
+z którym `svc_getc` sprawdza bufor.
+Taki stan nie włącza flagi sesji serwisowej,
+bo `svc_dispatch` nie dostaje żadnego poprawnego pakietu ✅,
+a z bajtów `C`, `CAN` i `ACK` pakiet komendy nie powstanie.
+Centrala pracuje więc normalnie,
+ale żadna komenda z zewnątrz do niej nie dotrze.
+
+Spotkaliśmy go z mostem na XIAO (`esp32/`),
+gdy linia RX centrali nie była skutecznie sterowana przez nasz nadajnik.
 
 ## Transport: XMODEM
 
