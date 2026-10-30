@@ -113,8 +113,19 @@ Asembler wybranych funkcji wypisuje `tools/ghidra/Disasm.java`.
 
 ## Panel TPR: `tpr_optima_vX.Y_pl.flsh`
 
-Nagłówek `rpmflash`, dalej dane binarne.
-Format i procesor nierozpoznane. ❓
+Nagłówek `rpmflash` (8 B) i 2 B (suma kontrolna? ❓), dalej jawny obraz binarny:
+
+- brak szyfrowania: indeks koincydencji ok. 0,05, typowy dla kodu maszynowego,
+  bez okresowości, która wskazywałaby na XOR z kluczem;
+- na początku tablica 32-bitowych wartości little-endian
+  (`0x00000592`, `0x00000593`, …, `0x0080F5C0`, `0x008076AA`),
+  najpewniej wektory przerwań;
+- pod koniec jawny opis: `Firmware dla TPR OptimaGSM` i wersja (`1.4`);
+- napisów interfejsu nie widać wprost (czcionki graficzne albo inne kodowanie ❓).
+
+Procesor panelu jest nieznany:
+adresy nie pasują do PIC32 ani do ARM Cortex-M.
+Do dalszej analizy potrzebne jest oznaczenie układu z płytki panelu.
 Panel aktualizuje się przez własne złącze RJ12 programem Partner GSM.
 
 ## APm-Aero: `aero_apm_X.Y.flsh`
