@@ -80,8 +80,8 @@
 0xa00002fc d g_panel_id          Unikalne ID centrali, 8 B ("ID centrali:%02X…"); bajty 4–11 odpowiedzi na komendę 0x01.
 0x9d011470 f status_header       Składa nagłówek statusu: '*', '4', wersja firmware'u, wersja z g_boot_version, maska modułów. ❓
 0x9d03c2dc f svc_send_status     Odsyła 4-bajtowy status (little-endian).
-0x9d03c374 f svc_check_code      Porównuje 6 bajtów z kodem serwisowym z konfiguracji.
-0xa0015d25 d g_service_code      Kod serwisowy (6 B).
+0x9d03c374 f svc_check_code      Porównuje 6 bajtów z hasłem komunikacji z konfiguracji.
+0xa0015d25 d g_service_code      Hasło komunikacji (6 B), w Managerze pole „Hasło komunikacji”; bajty 1–6 sekcji COMM.
 0x9d04eb24 f svc_receive         Odbiór danych: XMODEM lokalnie albo ramki 'S' przez modem.
 0x9d04f00c f svc_transmit        Wysyłka danych: XMODEM lokalnie albo ramki 'S' przez modem.
 0x9d04f1a4 f svc_remote_receive  Odbiór przez modem: 'S', długość (2 B), dane, suma. ❓ szyfrowanie
@@ -97,5 +97,17 @@
 0x9d068f80 d crc16_xmodem_table
 0xa0000b68 d g_xmodem_buf        Bufor bloku XMODEM: nagłówek, numer, ~numer, dane, CRC.
 0x9d01b2b8 f svc_stream_to_modem Pobiera z portu 2 bloki ('s', długość 2 B, dane) i przekazuje je DMA do modemu; na końcu 'e'.
+0x9d04c218 f cfg_section_get     Kopiuje sekcję konfiguracji o podanej nazwie do struktury w RAM.
+0x9d04c030 f cfg_section_put     Kopiuje strukturę z RAM do sekcji konfiguracji (limit 52 000 B danych).
+0x9d04cb2c f cfg_section_add     Dopisuje sekcję do katalogu: przesunięcie = poprzednie + rozmiar + 8, najwyżej 28 sekcji.
+0x9d04cc98 f cfg_create_layout   Buduje katalog sekcji (INPUT, OUT, …) dla nowej konfiguracji. ❓
+0x9d04c49c f cfg_load_all        Rozpakowuje wszystkie sekcje (INPUT, OUT, TEST, COUNT, TIMES, STREFY, COMM, …) do struktur w RAM.
+0x9d04c878 f cfg_store_all       Zapisuje struktury z RAM do sekcji i przelicza CRC konfiguracji.
+0x9d04bd5c f cfg_file_load       Wczytuje plik (np. 0:config.rpm) do g_config tylko do odczytu (FatFs FA_READ) i sprawdza CRC.
+0x9d04be4c f cfg_file_save       Zapisuje g_config do pliku (FatFs FA_CREATE_ALWAYS | FA_WRITE).
+0x9d069f8c f strcpy
+0xa0015d24 d g_cfg_comm          Sekcja COMM (33 B): bajt flag, od bajtu 1 hasło komunikacji (6 B), …
+0xa00151b6 d g_cfg_nsections     Liczba sekcji w katalogu (w g_config pod 0xCCB6).
+0xa00151b8 d g_cfg_crc           CRC-16/XMODEM konfiguracji (w g_config pod 0xCCB8).
 0xa0008500 d g_config            Konfiguracja centrali (52 412 B), zawartość pliku 0:config.rpm.
 0x9d06b79c d CONFIG_SIZE         Rozmiar konfiguracji: 52 412.

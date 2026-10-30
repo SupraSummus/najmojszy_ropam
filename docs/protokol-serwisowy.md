@@ -78,7 +78,7 @@ Pozostałe są w `switch` w `FUN_9d03c3f0`.
 |---|---|---|
 | `0x01` | identyfikacja: 12 B, opis niżej; zapisuje w dzienniku zdarzenie programowania | ✅ sprawdzone na sprzęcie |
 | `0x02` | zapis konfiguracji: blob 52 412 B (v3.4) z CRC-16/XMODEM, zapis do pliku `0:config.rpm` i kopii `0:cfgcpy.rpm`; odpowiedź: status | ✅ |
-| `0x03` | odczyt konfiguracji: argument to 6-znakowy kod serwisowy; przy zgodności wysyła `0:config.rpm`, inaczej status 2 | ✅ |
+| `0x03` | odczyt konfiguracji: argument to 6-bajtowe „hasło komunikacji” (sekcja `COMM`); przy zgodności wysyła `0:config.rpm`, inaczej status 2 | ✅ status 2 przy złym haśle sprawdzony na sprzęcie |
 | `0x07` | odczyt bloku 198 B (`0xC6`) | ✅ |
 | `0x08` | odczyt tablicy modułów magistrali, 198 B | ❓ |
 | `0x12` | wpisanie PIN-u karty SIM do modemu (`AT+CPIN`), opcja „WPISZ KOD PIN” z instrukcji | ✅ |
@@ -96,10 +96,34 @@ Pozostałe są w `switch` w `FUN_9d03c3f0`.
 
 Odpowiedź przychodzi jednym blokiem 64 B (nagłówek `0x19`) z dopełnieniem.
 
-Rozmiar konfiguracji jest zaszyty w firmware'ze (`0x9d06b79c`),
-więc może się różnić między wersjami.
-Pliki `.rpm` zapisywane przez OptimaGSM Managera nie mają tego samego rozmiaru
-co blob w v3.4, więc albo mają dodatkowe sekcje, albo pochodzą z innej wersji ❓.
+## Konfiguracja w centrali (`config.rpm`)
+
+Blob o stałym rozmiarze, zaszytym w firmware'ze (`CONFIG_SIZE`, 52 412 B w v3.4) ✅:
+
+| Przesunięcie | Zawartość |
+|---|---|
+| `0x0000` | nagłówek 14 B; bajt 4 to wersja formatu, bajt 5 wersja z `g_boot_version` |
+| `0x000E` | katalog: 28 wpisów po 14 B (nazwa 8 B, przesunięcie u16, rozmiar u16, 2 B ❓) |
+| `0x0196` | dane sekcji; każda kolejna sekcja zaczyna się 8 B za końcem poprzedniej |
+| `0xCCB6` | liczba sekcji |
+| `0xCCB8` | CRC-16/XMODEM (wyliczane z pierwszych `CONFIG_SIZE − 4` bajtów) |
+
+Sekcje mają nazwy tekstowe i lądują w osobnych strukturach w RAM
+(`cfg_load_all`, `cfg_store_all`).
+Nazwy w v3.4:
+`INPUT`, `OUT`, `TEST`, `COUNT`, `TIMES`, `STREFY`, `SMTP`, `COMM`, `GPRSCFG`,
+`TIMR`, `TEL`, `EMAIL`, `ANINP`, `M_RF4`, `APCFG`, `VAR1`, `WIFI`, `LOGTXT` i kilka krótszych.
+Sekcja `COMM` (33 B) zawiera m.in. bajt flag i hasło komunikacji (bajty 1–6) ✅.
+
+## Kopia konfiguracji z OptimaGSM Managera (`*.rpm`)
+
+To inny format niż blob w centrali:
+zaczyna się od `"Optim\0"` i 8-bajtowego ID centrali,
+a reszta jest zaszyfrowana porządnym szyfrem
+(entropia ≈ 8 bitów na bajt, brak okresowości),
+więc nie jest to prosty XOR jak w firmware'ze.
+Plik jest o ok. 5,5 KB większy od bloba z centrali ❓ (np. dodatkowe dane Managera).
+Do rozpracowania w kodzie Managera.
 
 ## Tryb zdalny
 

@@ -8,9 +8,11 @@ Użycie:
     ropam_serwis.py PORT nasluch [SEKUNDY]   # pokazuje, co nadaje centrala
     ropam_serwis.py PORT id                  # komenda 0x01
     ropam_serwis.py PORT konfiguracja KOD PLIK   # komenda 0x03
+        KOD: 6 znaków albo hex:xxxxxxxxxxxx
 
 PORT to np. /dev/ttyUSB0. Wymaga pyserial.
 """
+import os
 import sys
 import time
 
@@ -41,9 +43,29 @@ def block_size(total):
     return BLK64, 64
 
 
-def read_byte(port, timeout):
+DEBUG = os.environ.get("ROPAM_DEBUG") == "1"
+
+
+def log(direction, data):
+    if DEBUG and data:
+        print(f"{time.monotonic():.3f} {direction} {data.hex(' ')}",
+              file=sys.stderr)
+
+
+def write(port, data):
+    log(">>", data)
+    port.write(data)
+
+
+def read(port, n, timeout):
     port.timeout = timeout
-    b = port.read(1)
+    data = port.read(n)
+    log("<<", data)
+    return data
+
+
+def read_byte(port, timeout):
+    b = read(port, 1, timeout)
     return b[0] if b else None
 
 
@@ -58,6 +80,8 @@ def wait_for(port, wanted, timeout):
 
 def send(port, data, timeout=10):
     """Wysyła dane XMODEM-em do centrali (centrala zaczyna od 'C')."""
+    # Stare 'C' i CAN-y z poprzednich sesji nie są zaproszeniem.
+    port.reset_input_buffer()
     if wait_for(port, {CRC_REQ}, timeout) is None:
         raise TimeoutError("centrala nie wysłała 'C'")
     head, size = block_size(len(data))
@@ -71,13 +95,13 @@ def send(port, data, timeout=10):
         packet = bytes([head, n & 0xFF, ~n & 0xFF]) + payload \
             + crc.to_bytes(2, "big")
         for _ in range(10):
-            port.write(packet)
+            write(port, packet)
             if wait_for(port, {ACK, NAK, CAN}, 2) == ACK:
                 break
         else:
             raise IOError(f"blok {n} nie potwierdzony")
     for _ in range(10):
-        port.write(bytes([EOT]))
+        write(port, bytes([EOT]))
         if wait_for(port, {ACK}, 2) == ACK:
             return
     raise IOError("EOT nie potwierdzony")
@@ -88,36 +112,35 @@ def receive(port, timeout=10):
     out = bytearray()
     expected = 1
     end = time.monotonic() + timeout
-    port.write(bytes([CRC_REQ]))
+    write(port, bytes([CRC_REQ]))
     while True:
         head = read_byte(port, 2)
         if head is None:
             if time.monotonic() > end:
                 raise TimeoutError("brak danych od centrali")
             if not out:
-                port.write(bytes([CRC_REQ]))
+                write(port, bytes([CRC_REQ]))
             continue
         if head == EOT:
-            port.write(bytes([ACK]))
+            write(port, bytes([ACK]))
             return bytes(out)
         if head == CAN:
             raise IOError("centrala przerwała transmisję")
         if head not in SIZES:
             continue
         size = SIZES[head]
-        port.timeout = 2
-        rest = port.read(2 + size + 2)
+        rest = read(port, 2 + size + 2, 2)
         if len(rest) != 2 + size + 2 or rest[0] != (~rest[1] & 0xFF):
-            port.write(bytes([NAK]))
+            write(port, bytes([NAK]))
             continue
         payload = rest[2:2 + size]
         if crc16_xmodem(payload) != int.from_bytes(rest[-2:], "big"):
-            port.write(bytes([NAK]))
+            write(port, bytes([NAK]))
             continue
         if rest[0] == expected & 0xFF:
             out += payload
             expected += 1
-        port.write(bytes([ACK]))
+        write(port, bytes([ACK]))
 
 
 def strip_padding(data):
@@ -134,18 +157,24 @@ def main():
         end = time.monotonic() + float(sys.argv[3] if len(sys.argv) > 3
                                        else 10)
         while time.monotonic() < end:
-            b = port.read(64)
+            b = read(port, 64, 1)
             if b:
                 print(f"{time.strftime('%H:%M:%S')}  {b.hex(' ')}  {b!r}")
     elif cmd == "id":
         send(port, bytes([0x01]))
         print(strip_padding(receive(port)).hex(" "))
     elif cmd == "konfiguracja" and len(sys.argv) == 5:
-        code = sys.argv[3].encode("ascii")
+        arg = sys.argv[3]
+        code = (bytes.fromhex(arg[4:]) if arg.startswith("hex:")
+                else arg.encode("ascii"))
         if len(code) != 6:
-            sys.exit("kod serwisowy musi mieć 6 znaków")
+            sys.exit("kod musi mieć 6 bajtów (tekst albo hex:xxxxxxxxxxxx)")
         send(port, bytes([0x03]) + code)
         data = receive(port, timeout=120)
+        if len(data) <= 64:
+            status = int.from_bytes(data[:4], "little")
+            sys.exit(f"centrala nie wydała konfiguracji, status {status}"
+                     + (" (zły kod)" if status == 2 else ""))
         with open(sys.argv[4], "wb") as f:
             f.write(data)
         print(f"zapisano {len(data)} B (z dopełnieniem XMODEM)")
