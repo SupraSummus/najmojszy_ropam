@@ -124,7 +124,8 @@ Numer gniazda ma stałe znaczenie (`bus_poll_round`) ✅:
 |---|---|
 | 1–4 | panele dotykowe TPR:1–4 (`tpr_service`) |
 | 5 | `FUN_9d05d0a0` ❓ |
-| 6, 7 | ekspandery na magistrali ❓ (np. EXP-I8-RN) |
+| 6 | ekspander wejść na magistrali, np. EXP-I8-RN (`expin_service`, niżej) |
+| 7 | zasilacz buforowy, najpewniej PSR-ECO-5012-RS (`psu_service`, niżej) |
 | 8 | moduł na porcie 1 (złącze EXP) ❓ |
 | 9 | koncentrator Hub-IQPLC (`hub_poll`) |
 | 10 | `FUN_9d058b88` ❓ |
@@ -209,9 +210,88 @@ Przed właściwą ramką centrala wysyła ramkę „budzącą”
 z tym samym adresem, komendą `0x9B` i bez danych,
 a po 150 ms ramkę właściwą ✅ (`FUN_9d053b2c`).
 
+## Ekspander wejść (gniazdo 6)
+
+Odczytane z firmware'u (`expin_service`), niesprawdzone na kablu ❓.
+Adres modułu to bajt 0 gniazda 6;
+w gnieździe są też numer pierwszego wejścia systemu, które moduł obsługuje,
+i liczba tych wejść (razem najwyżej do wejścia 48).
+
+Obieg (licznik w gnieździe):
+
+- zwykle wymiana `0xDD`;
+- co 60. raz zamiast niej `0xDC`: 1 B, odpowiedź 64 B (opis modułu ❓);
+- co 11. obieg `0xDF` z tymi samymi 8 B co `0xDD`,
+  odpowiedź to pełny blok stanu modułu (do ok. 0x76 B),
+  w którym pod `0x67`–`0x69` są te same 3 bajty co pod 19–21 odpowiedzi `0xDD`.
+
+### `0xDD`: zapytanie, 8 B
+
+| Bajt | Treść |
+|---|---|
+| 0 | bit 0 i bit 3: któraś strefa w czuwaniu; bit 1: flaga sesji serwisowej; bit 2: bit 0 flag systemu ❓; bit 7: zawsze 1 |
+| 1–2 | maska 16 wejść modułu, które teraz czuwają: wszystkie ich strefy w czuwaniu (pełnym albo nocnym), a wejście nie jest wyłączone ❓ |
+| 3–4 | stany stref zebrane w maski po 4 bity (bit = strefa): m.in. odliczanie czasu na wyjście ❓ |
+| 5 | bity 0–3: czuwanie nocne stref 1–4; bity 4–7 ❓ |
+| 6–7 | stan wyjść 17–32 (z uwzględnieniem polaryzacji wyjścia) |
+
+Ekspander dostaje więc stan czuwania, stref i części wyjść;
+wyjścia 17–32 sugerują, że ta sama wymiana obsługuje też ekspandery wyjść ❓.
+
+### `0xDD`: odpowiedź
+
+| Bajt | Treść |
+|---|---|
+| 0–15 | stan każdego z 16 wejść, opis niżej |
+| 16 | bit 7: zdarzenie `0x7F` (argument: bajt 18) i flaga w stanie systemu, wtedy wszystkie wejścia jak przy bicie 3 (sabotaż modułu ❓); bit 6: po ok. 1800 obiegach centrala zleca coś modułowi ❓; bit 4: flaga gniazda |
+| 17–18 | ❓ (bajt 18 to argument zdarzenia `0x7F`) |
+| 19–21 | bity 0–4: numer ❓, bity 8–12: przyciski ❓, bit 13: zdarzenie `0x6A`; bajt 21 ≠ 0 zapisywany osobno ❓ |
+
+Bajt stanu wejścia:
+
+| Bit | Znaczenie |
+|---|---|
+| 0 | wejście obsługiwane; bez niego wartość linii 60000 |
+| 1 | naruszenie: wartość linii 2200 zamiast 1100 |
+| 2 | wartość linii 60000 (przerwa ❓) |
+| 3 | zdarzenia `0x71`/`0x72` przy zmianie; wartość linii 2200 albo 60000 zależnie od ustawienia ❓ |
+| 4 | zdarzenia `0x73`/`0x74` przy zmianie, przy `0x73` także SMS z ustawień |
+
+Centrala nie przenosi stanów wejść wprost,
+tylko udaje zmierzone wartości linii (1100 spoczynek, 2200 naruszenie, 60000 przerwa)
+i wpisuje je do tablicy wejść (`inputs_set_lines`),
+tej samej, w której są pomiary wejść płyty głównej
+(pod `0xDC` odpowiedzi na komendę serwisową `0x24`, [`stan-centrali.md`](stan-centrali.md)).
+Dalej wejścia ekspandera przechodzą tę samą logikę co wejścia płyty.
+
+## Zasilacz (gniazdo 7)
+
+Odczytane z firmware'u (`psu_service`), niesprawdzone na kablu ❓.
+Przypisanie do PSR-ECO-5012-RS wynika z listy modułów w instrukcji
+i z treści wymiany (230 V, akumulator).
+
+Zapytanie `0xDD`, 4 B:
+bajt 0 to jeden bit ustawień centrali ❓, reszta to zera.
+
+Odpowiedź `0xDD`:
+
+| Bajt | Treść |
+|---|---|
+| 0 | bit 0: jest 230 V; bity 3–5: usterki (każda ustawia flagę w stanie systemu) |
+| 1 | ❓ |
+| 2–13 | sześć wartości 16-bitowych, starszy bajt pierwszy (napięcia, prądy ❓) |
+| 14 | akumulator: 0 sprawny, 1 albo 2 usterka |
+
+Brak 230 V centrala sygnalizuje od razu,
+a po czasie z ustawień zapisuje zdarzenie `0x29` z argumentem 1
+(powrót: `0x29` z argumentem 0).
+Usterka akumulatora to zdarzenie `0x2B` (1 początek, 0 koniec).
+Przy zdarzeniach wysyła SMS-y z ustawień ❓.
+
 ## Do zrobienia
 
-- Ekspandery (gniazda 6, 7) i moduły w gniazdach 10–14.
+- Moduły w gniazdach 5, 8 i 10–14.
+- Ekspander i zasilacz: sprawdzić na kablu; znaczenie bajtów oznaczonych ❓.
 - Dokładny układ żądań `0x12`–`0x1D` (pola przed kodem) i komend `0x25`–`0x40`.
 - Weryfikacja na kablu: pasywny podsłuch RS-485 z 115200 8N1,
   sprawdzenie CRC narzędziem `ropamnet.py check`

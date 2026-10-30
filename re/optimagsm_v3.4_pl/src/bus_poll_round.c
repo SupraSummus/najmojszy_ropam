@@ -38,10 +38,10 @@ void bus_poll_round(char param_1)
         }
         break;
       case 6:
-        local_e = FUN_9d030d60();
+        local_e = expin_service();
         break;
       case 7:
-        local_e = FUN_9d06311c();
+        local_e = psu_service();
         break;
       case 8:
         if (DAT_a0000180 != '\x01') {

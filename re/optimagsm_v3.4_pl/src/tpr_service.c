@@ -65,8 +65,8 @@ undefined4 tpr_service(int param_1)
   case 0x11:
     memcpy(&DAT_a0001ec8 + local_34 * 0xc,0xa001700b,10);
     if ((&DAT_a00159a4)[param_1 * 0xb] != '\0') {
-      FUN_9d00199c((&DAT_a00159a5)[param_1 * 0xb],1,&DAT_a0001ec8 + local_34 * 0xc);
-      FUN_9d00199c((byte)(&DAT_a00159a5)[param_1 * 0xb] + 1,1,local_34 * 0xc + -0x5fffe136);
+      inputs_set_lines((&DAT_a00159a5)[param_1 * 0xb],1,&DAT_a0001ec8 + local_34 * 0xc);
+      inputs_set_lines((byte)(&DAT_a00159a5)[param_1 * 0xb] + 1,1,local_34 * 0xc + -0x5fffe136);
       if (*(ushort *)(&DAT_a0001ecc + local_34 * 0xc) < 0x352) {
         (&DAT_a00159a1)[param_1 * 0xb] = (&DAT_a00159a1)[param_1 * 0xb] & 0xdf | 0x20;
       }

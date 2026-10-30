@@ -78,6 +78,11 @@
 0x9d0535dc f rnet_build_frame    Wypełnia ramkę: adres, komenda, długość, dane.
 0x9d0536d0 f rnet_send_multi     Wysyła dłuższy blok w wielu ramkach.
 0x9d05366c f rnet_queue_msg      Wysyła do paneli komunikat (np. 0x30) ❓.
+0x9d030d60 f expin_service       Gniazdo 6, ekspander wejść: 0xDD (8 B stanu systemu) → 16 B stanów wejść i status; co 11. obieg 0xDF, co 60. 0xDC.
+0x9d030b30 f expin_read_dc       Ekspander wejść: 0xDC (1 B) → 64 B do 0xA0001234 (opis modułu ❓).
+0x9d030c08 f expin_read_df       Ekspander wejść: 0xDF (8 B) → pełny blok stanu modułu (do 0x76 B).
+0x9d00199c f inputs_set_lines    Wpisuje wartości linii (u16) kolejnych wejść do g_inputs_state, od wejścia o podanym numerze.
+0x9d06311c f psu_service         Gniazdo 7, zasilacz buforowy (PSR-ECO ❓): 0xDD (4 B) → stan 230 V, usterki, napięcia, akumulator; zdarzenia 0x29, 0x2B.
 0x9d05f088 f code_lookup         Szuka kodu w tablicy 32 użytkowników (34 B na wpis); zwraca numer, 100 dla kodu serwisowego, 0xFF gdy brak.
 0xa00162e4 d g_users             Tablica użytkowników: 32 × 34 B (kod jako napis, +0x0D uprawnienia).
 0xa0015d30 d g_service_code4     Czterocyfrowy kod serwisowy (użytkownik 100).
