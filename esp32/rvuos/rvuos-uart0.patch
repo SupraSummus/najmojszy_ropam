@@ -1,0 +1,59 @@
+diff --git a/kernel/board/esp32c6/board.h b/kernel/board/esp32c6/board.h
+index f6cb9ed..ab8049f 100644
+--- a/kernel/board/esp32c6/board.h
++++ b/kernel/board/esp32c6/board.h
+@@ -107,12 +107,14 @@
+  * UTIME, the CLINT's copy of mtime for user mode, read only, for a program to read the counter with no call,
+  * and SPI2, the general-purpose SPI controller, read and write, whose clocks board.c sets: 80 MHz for its master clock;
+  * it reaches memory only through the GDMA, which is not listed, so it is no bus master to whoever holds it.
++ * UART0, read and write, as the ROM left it: 115200 8N1 on GPIO16 (TX) and GPIO17 (RX), its clocks on
++ * (najmojszy_ropam: the bridge to the alarm panel's service port; not upstream yet).
+  * PCR, PMU and the LP domain stay the kernel's: they reach the whole chip's clocks, power and resets.
+  * The modem's two MACs, Wi-Fi's and 802.15.4's, are bus masters, which nothing confines,
+  * so whoever holds the modem reaches all RAM; see DESIGN.md, open decision 13.
+  * The dump engine is the modem's too, and whoever holds HP_SYSTEM as well can give it any bank, the kernel's too.
+  */
+-#define BOOT_DEVICES 11
++#define BOOT_DEVICES 12
+ #define DEVICE_RANGE_LIST                                       \
+     { U32(0x6000E000), U32(0x00001000), RIGHT_R | RIGHT_W },    \
+     { U32(0x600A0000), U32(0x00010000), RIGHT_R | RIGHT_W },    \
+@@ -124,7 +126,8 @@
+     { U32(0x60091000), U32(0x00001000), RIGHT_R | RIGHT_W },    \
+     { U32(0x60095000), U32(0x00001000), RIGHT_R | RIGHT_W },    \
+     { U32(0x20001c08), U32(0x00000008), RIGHT_R },             \
+-    { U32(0x60081000), U32(0x00001000), RIGHT_R | RIGHT_W },
++    { U32(0x60081000), U32(0x00001000), RIGHT_R | RIGHT_W },    \
++    { U32(0x60000000), U32(0x00001000), RIGHT_R | RIGHT_W },
+ 
+ /*
+  * The DMA controller: the GDMA's three transmit channels, each reading memory into a device, SPI2 the one listed,
+diff --git a/user/board/esp32c6/devices.h b/user/board/esp32c6/devices.h
+index 2f0da45..754be7d 100644
+--- a/user/board/esp32c6/devices.h
++++ b/user/board/esp32c6/devices.h
+@@ -15,7 +15,7 @@
+  * which reaches memory only by a channel of BOOT_CAP_DMA, its request DMA_REQUEST_SPI2.
+  * A frame maps at its own address, so a program names a register by the device's base.
+  */
+-#define BOOT_DEVICES 11
++#define BOOT_DEVICES 12
+ #define BOOT_CAP_SARADC (BOOT_CAP_DEVICES + 0) /* the SAR ADC and the temperature sensor, 4 KiB */
+ #define BOOT_CAP_MODEM  (BOOT_CAP_DEVICES + 1) /* the modem, 64 KiB, with its MACs, which are bus masters */
+ #define BOOT_CAP_EFUSE  (BOOT_CAP_DEVICES + 2) /* the eFuse's registers, read only, 1 KiB */
+@@ -27,6 +27,7 @@
+ #define BOOT_CAP_HP_SYSTEM (BOOT_CAP_DEVICES + 8) /* HP_SYSTEM, which hands SRAM's banks to the dump engine, 4 KiB */
+ #define BOOT_CAP_COUNTER (BOOT_CAP_DEVICES + 9) /* UTIME, read only, 8 bytes */
+ #define BOOT_CAP_SPI2   (BOOT_CAP_DEVICES + 10) /* SPI2, the general-purpose SPI controller, 4 KiB */
++#define BOOT_CAP_UART0  (BOOT_CAP_DEVICES + 11) /* UART0, as the ROM left it, 4 KiB */
+ 
+ /* SPI2's request, as OP_DMA_END names the device a channel feeds. */
+ #define DMA_REQUEST_SPI2 0u
+@@ -53,6 +54,7 @@
+ #define GPIO_BASE         0x60091000u
+ #define HP_SYSTEM_BASE    0x60095000u
+ #define SPI2_BASE         0x60081000u
++#define UART0_BASE        0x60000000u
+ #define FLASH_WINDOW_BASE  0x42000000u
+ #define FLASH_WINDOW_FLASH 0x00210000u /* where the window's first byte lies in flash */
+ 

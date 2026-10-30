@@ -1,0 +1,4 @@
+[submodule "third_party/rvuos"]
+	path = third_party/rvuos
+	url = https://github.com/SupraSummus/rvuos.git
+	ignore = dirty
