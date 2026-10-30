@@ -32,4 +32,6 @@ Co wiemy, a czego nie, opisują pliki w [`docs/`](docs/):
 - [`docs/zrodla.md`](docs/zrodla.md):
   skąd to wszystko wiemy.
 
+Zrozumiany kod firmware'u (nazwy, komentarze, czytelny C) jest w [`re/`](re/).
+
 Konwencje projektu są w [`CLAUDE.md`](CLAUDE.md).

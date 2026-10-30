@@ -25,6 +25,10 @@ po 16 próbach wysyła 3 × CAN i zaczyna od nowa ✅.
 Po podłączeniu kabla powinno być widać strumień `C` co 2 sekundy.
 To najprostszy test, że jesteśmy na właściwym porcie i z właściwą prędkością.
 
+**Potwierdzone na sprzęcie** (kabel USB-MGSM, FTDI, 115200 b/s, sam odbiór):
+centrala w normalnej pracy nadaje `0x43` co 2 sekundy.
+Potwierdza to port (UART4 na gnieździe RJ12), prędkość i działanie zadania serwisowego.
+
 ## Transport: XMODEM
 
 Implementacja odpowiada popularnemu `xmodem.c` Georges'a Menie,

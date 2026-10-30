@@ -1,0 +1,97 @@
+# Symbole firmware'u OptimaGSM v3.4 (obraz pod 0x9D000000).
+# Format: ADRES RODZAJ NAZWA [KOMENTARZ]
+#   f = funkcja, d = dane.
+# Komentarze: ❓ oznacza przypuszczenie, bez znaku wynika wprost z kodu.
+# Nakładane przez tools/ghidra/analyze.sh; wynik w src/.
+
+# --- start, RTOS, biblioteki ---
+0x9d001000 f _reset              Start aplikacji za bootloaderem (crt0 XC32): $sp=0xA001FFE8, $gp=0xA0007FF0.
+0x9d05ecf8 f os_delay            Uśpienie bieżącego zadania na N tyknięć, FreeRTOS vTaskDelay. ❓ jednostka (ms?)
+0x9d067640 f busy_wait_t1        Aktywne czekanie na Timer1; używane przy przełączaniu kierunku RS-485. ❓ jednostka
+0x9d06a5e4 f memcpy
+0x9d06c324 f memset
+0x9d06d240 f sprintf
+0x9d06d6a8 f vsprintf
+0x9d06aa0c f xc32_mon_read       libc XC32: odczyt stdin z UART1 albo UART2 (wg __XC_UART), odpytywaniem.
+0x9d06bdec f xc32_mon_putc       libc XC32: zapis znaku stdout na UART1 albo UART2.
+0xa0000070 d __XC_UART           Numer UART-u dla stdio libc (1 = UART1, 2 = UART2).
+
+# --- PLIB: porty, UART-y, DMA ---
+0x9d06e150 f PORTSetBits         Zapis maski do LATxSET; (5, 8) ustawia RF3 = nadawanie RS-485.
+0x9d06e128 f PORTClearBits       Zapis maski do LATxCLR; (5, 8) zeruje RF3 = odbiór RS-485.
+0x9d06d4fc f UARTSetDataRate     PLIB: UxBRG = zegar / (16 albo 4 × prędkość) − 1.
+0x9d06e45c d uart_base_table     Adresy bloków UART wg identyfikatora PLIB: U1, U2, U3, U4, U5, U6.
+0x9d023060 f dma_uart_tx         Wysyłka bufora kanałem DMA 0 na UART2 (1), UART4 (2) albo UART5 (3) z oczekiwaniem.
+0x9d022f94 f dma_uart2_rx_start  Odbiór kanałem DMA 1 z U2RXREG.
+0x9d01b1ec f dma_uart4_rx_start  Odbiór kanałem DMA 1 z U4RXREG.
+
+# --- porty szeregowe centrali (0 = RopamNET, 1 = EXP, 2 = serwis, 3 = modem) ---
+0x9d050f58 f uart_init_all       Konfiguracja UART1, 2, 4, 5: 115200 b/s przy 80 MHz, przerwania RX, bufory 512/128/1500/1024 B.
+0xa0017560 d g_uart_rxbuf        Wskaźniki buforów odbiorczych portów 0–3.
+0x9d0512d8 f uart1_rx_isr        Przerwanie RX UART1: przepisuje FIFO do bufora portu 0.
+0x9d050870 f uart_putc           Wysyłka bajtu na port (aktywne czekanie na TRMT).
+0x9d050aa0 f uart_printf         printf na port (bufor 64 B).
+0x9d050d4c f uart_rx_flush       Opróżnia bufor odbiorczy portu.
+0x9d0507d8 f uart_rx_count       Liczba bajtów w buforze odbiorczym portu.
+0x9d050d94 f uart_read           Odczyt N bajtów z portu z limitem czasu.
+0x9d050eb4 f uart_read_avail     Odczyt dostępnych bajtów (najwyżej N).
+0x9d05321c f uart_wait_bytes     Czeka, aż w buforze portu będzie co najmniej N bajtów.
+0x9d0362f0 f rb_create           Tworzy bufor/kolejkę bajtów. ❓ FreeRTOS
+0x9d036a34 f rb_write_isr        Zapis bajtów do bufora z przerwania. ❓
+0x9d036828 f rb_read             Odczyt bajtów z bufora. ❓
+0x9d036428 f rb_reset            Opróżnienie bufora. ❓
+0x9d036284 f rb_count            Liczba bajtów w buforze. ❓
+
+# --- ramki RopamNET (port 0) i EXP (port 1), docs/protokol-ramek.md ---
+0x9d052f50 f rnet_send_frame     Wysyła ramkę [adres][cmd][len][dane][CRC_hi][CRC_lo], czeka na bajt ACK (3 = OK, 1 = zły CRC, brak = 2), do 3 prób.
+0x9d0532dc f rnet_recv_frame     Odbiera odpowiedź zaczynającą się od 0xAA, sprawdza CRC i odsyła ACK (3) albo NAK (1).
+0x9d052d48 f rnet_crc16          CRC ramki: start 0xFFFF, wielomian 0xA001, bit testowany po przesunięciu (niestandardowe).
+0x9d052c94 f rnet_crc16_update   Krok CRC dla jednego bajtu.
+0x9d052c18 f rnet_read_ack       Czeka na bajt potwierdzenia; brak = 2.
+0x9d052bc0 f rnet_read_byte      Odczyt bajtu z limitem czasu; ustawia g_rnet_timeout.
+0x9d052b04 f rnet_debug_dump     Wypisuje odebraną ramkę na port 1 ("Rxframe adres:%x cmd:%x len:%x").
+0x9d05393c f rnet_read_multi     Odczyt bloku w wielu ramkach (kontynuacja: komenda '!').
+0x9d053b2c f exp_send_wake       Port 1: ramka budząca (cmd 0x9B, bez danych), 150 ms przerwy, właściwa ramka.
+0xa0016f10 d g_rnet_tx           Ramka do wysłania (CRC trzymane pod +0xF4).
+0xa0017008 d g_rnet_rx           Ostatnia odebrana ramka.
+0xa000017c d g_rnet_cnt_ok
+0xa000017a d g_rnet_cnt_noack
+0xa0000178 d g_rnet_cnt_badcrc
+0xa000027a d g_rnet_timeout      1, gdy ostatni rnet_read_byte nie doczekał się bajtu.
+
+# --- koncentrator pod adresem 0xB0 ❓ Hub-IQPLC ---
+0x9d04f590 f hub_cmd_f0          Ramka 0xB0/0xF0, 8 B stanu; odpowiedź 0xF0.
+0x9d04f668 f hub_cmd_f1          Ramka 0xB0/0xF1, 8 B stanu; odpowiedź 0xF1, 84 B.
+0x9d04f7bc f hub_cmd_f2          Ramka 0xB0/0xF2, 4 B.
+0x9d04f740 f hub_cmd_f3          Ramka 0xB0/0xF3, 32 B.
+0x9d04f864 f hub_cmd_f4          Ramka 0xB0/0xF4, 1 B.
+0x9d04f8f8 f hub_cmd_f5          Ramka 0xB0/0xF5, 2 B.
+0x9d04f994 f hub_cmd_f6          Ramka 0xB0/0xF6, 6 B.
+0x9d04fa08 f hub_cmd_f7          Ramka 0xB0/0xF7, bez danych.
+0x9d04fabc f hub_poll            Cykliczna wymiana stanu 8 modułów IO/IOE z koncentratorem.
+
+# --- protokół serwisowy (port 2 lokalnie, port 3 przez GPRS), docs/protokol-serwisowy.md ---
+0x9d02b640 f task_service        Zadanie RTOS: po starcie czeka, potem w pętli woła svc_dispatch.
+0x9d03c3f0 f svc_dispatch        Odbiera pakiet komendy i wykonuje komendę wg pierwszego bajtu.
+0x9d016a04 f svc_dispatch_ext    Komendy 0x32–0x45 z tablicy svc_ext_handlers, gdy ustawiona flaga. ❓ tryb ON-LINE
+0xa001738c d svc_ext_handlers    Tablica wskaźników obsługi komend 0x32–0x45.
+0x9d03c2dc f svc_send_status     Odsyła 4-bajtowy status (little-endian).
+0x9d03c374 f svc_check_code      Porównuje 6 bajtów z kodem serwisowym z konfiguracji.
+0xa0015d25 d g_service_code      Kod serwisowy (6 B).
+0x9d04eb24 f svc_receive         Odbiór danych: XMODEM lokalnie albo ramki 'S' przez modem.
+0x9d04f00c f svc_transmit        Wysyłka danych: XMODEM lokalnie albo ramki 'S' przez modem.
+0x9d04f1a4 f svc_remote_receive  Odbiór przez modem: 'S', długość (2 B), dane, suma. ❓ szyfrowanie
+0x9d04f3bc f svc_remote_transmit Wysyłka przez modem. ❓
+0x9d04e420 f svc_putc            Bajt na port 2 albo 3 (wg trybu lokalny/zdalny).
+0x9d04e48c f svc_getc            Bajt z portu 2 albo 3 z limitem czasu.
+0x9d04e3c4 f svc_flush           Opróżnia bufor portu 2 albo 3.
+0x9d04e5a4 f svc_read            Odczyt N bajtów z portu 2 albo 3.
+0x9d04e750 f xmodem_receive      Odbiornik XMODEM-CRC (bloki 64/128/1024 B), wzorowany na xmodem.c G. Menie.
+0x9d04ebc8 f xmodem_transmit     Nadajnik XMODEM; rozmiar bloku wg długości: ≤64 → 0x19, <1024 → SOH, inaczej STX.
+0x9d04e640 f xmodem_check        Sprawdza CRC-16 albo sumę 8-bitową bloku.
+0x9d04e318 f crc16_xmodem        CRC-16/XMODEM tablicowo (wielomian 0x1021, start 0).
+0x9d068f80 d crc16_xmodem_table
+0xa0000b68 d g_xmodem_buf        Bufor bloku XMODEM: nagłówek, numer, ~numer, dane, CRC.
+0x9d01b2b8 f svc_stream_to_modem Pobiera z portu 2 bloki ('s', długość 2 B, dane) i przekazuje je DMA do modemu; na końcu 'e'.
+0xa0008500 d g_config            Konfiguracja centrali (52 412 B), zawartość pliku 0:config.rpm.
+0x9d06b79c d CONFIG_SIZE         Rozmiar konfiguracji: 52 412.
