@@ -1,0 +1,17 @@
+# Pliki producenta (instalatory, binarki, firmware, PDF-y) — tylko lokalnie
+vendor/
+
+# Surowe zrzuty ruchu mogą zawierać kody i klucze
+captures/raw/
+
+# Kopie konfiguracji centrali (prawdziwa instalacja)
+*.rpm
+private/
+
+# Wyniki analizy (obrazy, projekty Ghidry, zdekompilowany kod Ropamu)
+build/
+
+# Python
+__pycache__/
+*.pyc
+.venv/

@@ -1,0 +1,29 @@
+Aktualizacja oprogramowania TPR-1x/2x (firmware).
+
+1. Zdemontowaæ panel TPR-1x/2x i pod³¹czyc kabel RS232 lub USB do z³¹cza RJ12 na PCB.
+2. Uruchomiæ program PARTENR GSM, wybraæ odpowiedni port COM  i otworzyæ go.
+3. Wybraæ w Partner GSM 'TPR-xx aktualizacja firmware'.
+4. Za³adowaæ plik z now¹ wersj¹ firmware (lub innego systemu), mo¿na tego dokonaæ na dwa sposoby:
+a. Naciœniêcie pola POBIERZ LISTÊ PLIKÓW    w trybie po³¹czenia internetowego spowoduje pobranie z serwera,
+b. Naciœniêcie pola £ADOWANIE FLASH Z DYSKU
+uruchomi okno mened¿era plików, nale¿y wskazaæ lokalizacjê  pliku z aktualizacj¹ (*flsh) i nacisn¹æ OTWÓRZ.  Plik zostanie za³adowany i zostanie wyœwietlona  informacja :
+np.  nazwa pliku dla TPR-1x/2x, wersja 1.9 ma postaæ : "tpr_neogsm_v1.9_pl.flsh"
+5. Uruchomienie procedury, dwa sposoby:
+a. wy³¹czyæ zasilanie panelu, nacisn¹æ przycisk ZAPIS PROGRAMU DO
+URZ¥DZENIA w Partner GSM a natêpnie w³¹czyæ zasilanie panelu
+(procedura wymagana przy braku komunikacji z central¹ !)
+b. wejœæ do trybu serwisowego panelu i uruchomiæ funckje "UPDATE"
+6. Wyœwietlony zostanie komunikat: TRWA FLASHOWANIE CZEKAJ. Nastêpnie
+nast¹pi zmiana firmware w systemie mikroprocesorowym. Postêp zmiany
+przedstawia wskaŸnik, pomyœlnie zakoñczona procedura zakoñczy siê
+komunikatem: FLASHOWANIE ZAKOÑCZONE.
+7. Od³¹czyæ kabel od portu RJ12, zmontowaæ panel, oprogramowaæ ca³y system.
+
+Procedura aktualizacji paneli do wersji OptimaGSM:
+- dokonaæ aktualizacji panelu za pomoc¹ Partner GSM
+- pod³¹czyæ tylko zasilanie i poczekaæ 2-3 minuty, dotkn¹æ ustawieñ i ustawiæ adres panelu (TP1-TP4),
+- pod³¹czyæ panel do systemu OptimaGSM,
+- dokonaæ identyfikacji w systemie i dodaæ panel do systemu (nie odczutywac danych z panelu i centrali !)
+- ustawiæ kilka opcji dla panelu,
+- zapisaæ ustawienia do centrali z nowym panelem,
+- po tej procedurze mo¿na odczytywaæ dane z systemu z panelem (po aktualziacji z innej wersji),

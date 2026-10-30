@@ -1,0 +1,33 @@
+UWAGA! 
+Kompatybilnoœæ nowej wersji systemu Aero !!
+* OptimaGSM od v2.1 (OptimaGMS Manager od 1.9)
+* NeoGSM od v2.0 (PartnerGSM od 1.5)
+* APm-Aero od v3.x
+* SmartPIR-Aero od v3.x
+* OSD-Aero od  v3.x
+* IO-Aero od v3.x
+* Keyfob-Aero- W/B od v3.x
+* AP-Aero v3.x 
+* Repeater-Aero v3.x 
+* RHT-Aero v3.x (APm-Aero od v3.3, OptimaGSM od v2.5, OptimaGSM_manager od 2.5)
+(aktualizacja starszych wersji czujek do v3.x  mo¿liwa tylko w serwisie !)
+
+1.Uruchomiæ APm z za³o¿on¹ zwork¹ BOOT
+2.Uruchomiæ program AEROUpdate.exe i za³adowaæ z serwera lub pliku firmware wersjê dla OptimaGSM >= 2.0
+3.W³¹czyc aktualizacjê i poczekaæ a¿ procedura dobiegnie koñca.
+4.Po udanym procesie aktualizacji uruchomic ponownie APm bez zworki BOOT.
+5.Po³¹czyæ APm z central¹ OptimaGSM i po³¹czyæ siê programem OptimaGSMManager.
+6.W zak³adce Modu³y,panele TPR -> APx-Aero proszê wykonaæ procedurê "Usuñ wszystkie czujki"
+7.System jest gotowy do programowania czujek Aero.
+
+Komaptybilnoœæ starszych wersji w systemie OptimaGSM
+* OptimaGSM do v2.1 (OptimaGMS Manager do 1.8)
+* APm-Aero v2.x
+* SmartPIR-Aero v1.x
+* OSD-Aero od  v1.x
+
+Komaptybilnoœæ starszych wersji w systemie NeoGSM;
+* NeoGSM do v2.0 (PartnerGSM do 1.4)
+* APm-Aero v1.x
+* SmartPIR-Aero v1.x
+
