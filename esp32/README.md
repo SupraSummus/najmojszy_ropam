@@ -34,16 +34,19 @@ Sprawdzone z centralą (D7 równolegle z kablem USB-MGSM):
 XIAO odbiera to samo co kabel, bajt w bajt,
 zarówno `C` w spoczynku, jak i całą odpowiedź XMODEM na komendę `id`.
 Można więc go używać jako podsłuchu sesji Managera.
-Nadawanie z D6 do centrali: jeszcze niesprawdzone.
-W pierwszym montażu wyszły po kolei dwie usterki:
+Sprawdzone w obie strony (RX centrali na D8, kabel USB-MGSM w bit-bang):
+`ropam_serwis.py /dev/ttyACM0 id` i `stan` działają jak przez kabel,
+także transfer 1100 B w blokach po 1024 B.
 
-1. kabel USB-MGSM został wpięty w gniazdo, ale odłączony od komputera,
-   i centrala słyszała własne echo
-   ([`docs/protokol-serwisowy.md`](../docs/protokol-serwisowy.md#objaw-centrala-słyszy-własne-echo));
-   po podłączeniu kabla do USB echo ustało;
-2. D6 nie był połączony z żyłą RX centrali:
-   `ropam-d6in` pokazał nóżkę wiszącą w powietrzu,
-   choć kabel przełączał w tym czasie tę żyłę tysiące razy.
+Po drodze wyszły dwie usterki montażu, warte zapamiętania:
+
+1. kabel USB-MGSM wpięty w gniazdo, ale odłączony od komputera:
+   centrala słyszała własne echo
+   ([`docs/protokol-serwisowy.md`](../docs/protokol-serwisowy.md#objaw-centrala-słyszy-własne-echo)),
+   które ustało po podłączeniu kabla do USB;
+2. RX centrali podłączony do D8 zamiast do D6:
+   `ropam-d6in` pokazał D6 wiszący w powietrzu.
+   Most wyprowadza teraz TX na obie nóżki.
 
 ### Połączenia
 
@@ -65,7 +68,7 @@ czyli mniej niż próg stanu wysokiego ESP32-C6 (0,75 × 3,3 V ≈ 2,5 V).
 |---|---|
 | GND | GND |
 | TX centrali | **D7** (GPIO17, odbiór) przez 1–10 kΩ |
-| RX centrali | **D6** (GPIO16, nadawanie) przez 1 kΩ |
+| RX centrali | **D6** (GPIO16, nadawanie) albo **D8** (GPIO19, ten sam sygnał przez matrycę GPIO) przez 1 kΩ |
 
 TX centrali rozpoznasz po tym, że w spoczynku nadaje `C` co 2 s:
 z wgranym mostem widać je w `picocom /dev/ttyACM0`.

@@ -8,6 +8,8 @@
  *
  * UART0 zostaje taki, jak ustawił go ROM: 115200 8N1,
  * TX na GPIO16 (D6) do RX centrali, RX na GPIO17 (D7) od TX centrali.
+ * TX wychodzi też, przez matrycę GPIO, na GPIO19 (D8),
+ * więc RX centrali można podłączyć do D6 albo do D8.
  * Wymaga rvuos z przydziałem UART0 (BOOT_CAP_UART0), zob. esp32/rvuos/README.md.
  *
  * Program nie korzysta z przerwań: co STEP_US przepycha to, co czeka w obu FIFO.
@@ -19,6 +21,7 @@
 
 #include "console.h"
 #include "devices.h"
+#include "pins.h"
 #include "rvuos.h"
 
 enum {
@@ -30,6 +33,11 @@ enum {
 /* Regiony procesu za kodem i danymi. */
 #define REGION_CONSOLE 2
 #define REGION_UART0   3
+#define REGION_IO_MUX  4
+#define REGION_GPIO    5
+
+#define PIN_TX_EXTRA 19u /* D8 */
+#define SIG_U0TXD    6u  /* sygnał wyjściowy U0TXD w matrycy GPIO */
 
 #define BIT_TIMER 1u
 #define STEP_US   500u
@@ -42,6 +50,7 @@ enum {
 #define UART_FIFO_SIZE   128u
 
 #define REG(off) (*(volatile uint32_t *)(UART0_BASE + (off)))
+#define MMIO(a)  (*(volatile uint32_t *)(a))
 
 static void expect(const char *what, uint32_t status)
 {
@@ -82,6 +91,13 @@ int main(void)
     expect("map the console", rv_process_install(BOOT_CAP_PROCESS, REGION_CONSOLE, BOOT_CAP_UART, RIGHT_R | RIGHT_W));
     console_init(base);
     expect("map UART0", rv_process_install(BOOT_CAP_PROCESS, REGION_UART0, BOOT_CAP_UART0, RIGHT_R | RIGHT_W));
+    expect("map IO MUX", rv_process_install(BOOT_CAP_PROCESS, REGION_IO_MUX, BOOT_CAP_IO_MUX, RIGHT_R | RIGHT_W));
+    expect("map GPIO", rv_process_install(BOOT_CAP_PROCESS, REGION_GPIO, BOOT_CAP_GPIO, RIGHT_R | RIGHT_W));
+
+    /* Druga nóżka TX: U0TXD przez matrycę GPIO na D8. */
+    MMIO(GPIO_OUT_SEL(PIN_TX_EXTRA)) = SIG_U0TXD | GPIO_OE_FROM_ENABLE;
+    MMIO(GPIO_ENABLE_W1TS) = 1u << PIN_TX_EXTRA;
+    MMIO(IO_MUX_PIN(PIN_TX_EXTRA)) = IO_MUX_MATRIX(2);
 
     expect("allocate the timer's notification", rv_pool_alloc(BOOT_CAP_POOL, CAP_NOTIFICATION, SLOT_NTFN, 0));
     expect("carve a timer line", rv_irq_carve(BOOT_CAP_TIMER_LINES, 0, 1, SLOT_LINE));

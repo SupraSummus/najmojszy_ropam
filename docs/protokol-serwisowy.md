@@ -58,8 +58,10 @@ a z bajtów `C`, `CAN` i `ACK` pakiet komendy nie powstanie.
 Centrala pracuje więc normalnie,
 ale żadna komenda z zewnątrz do niej nie dotrze.
 
-Spotkaliśmy go z mostem na XIAO (`esp32/`),
-gdy linia RX centrali nie była skutecznie sterowana przez nasz nadajnik.
+Spotkaliśmy go, gdy kabel USB-MGSM był wpięty w gniazdo,
+ale odłączony od komputera:
+niezasilony FT232BL oddawał na RX to, co nadawał TX centrali.
+Po podłączeniu kabla do USB echo ustało ✅.
 
 ## Transport: XMODEM
 
