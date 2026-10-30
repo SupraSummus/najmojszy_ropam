@@ -37,6 +37,8 @@ Można więc go używać jako podsłuchu sesji Managera.
 Sprawdzone w obie strony (RX centrali na D8, kabel USB-MGSM w bit-bang):
 `ropam_serwis.py /dev/ttyACM0 id` i `stan` działają jak przez kabel,
 także transfer 1100 B w blokach po 1024 B.
+Działa też z kablem wpiętym w gniazdo, ale odłączonym od komputera:
+spoczynek nadajnika XIAO za 1 kΩ przeważa echo niezasilonego FT232BL.
 
 Po drodze wyszły dwie usterki montażu, warte zapamiętania:
 
