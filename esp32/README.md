@@ -34,8 +34,8 @@ Sprawdzone z centralą (D7 równolegle z kablem USB-MGSM):
 XIAO odbiera to samo co kabel, bajt w bajt,
 zarówno `C` w spoczynku, jak i całą odpowiedź XMODEM na komendę `id`.
 Można więc go używać jako podsłuchu sesji Managera.
-Nadawanie z D6 do centrali: do sprawdzenia bez kabla USB-MGSM,
-bo dwa nadajniki na jednej linii by się kłóciły.
+Nadawanie z D6 do centrali: do sprawdzenia
+(kabel USB-MGSM może zostać wpięty, byle w tym czasie nie nadawał).
 
 ### Połączenia
 
