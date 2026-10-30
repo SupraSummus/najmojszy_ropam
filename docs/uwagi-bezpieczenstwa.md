@@ -43,6 +43,17 @@ np. nie wysyła SMS-ów przy naruszeniu wejść.
 Nie wiadomo, czy centrala sygnalizuje ten stan w jakikolwiek widoczny sposób,
 ani czy da się go włączyć zdalnie (przez GPRS). ❓
 
+## Zapis konfiguracji bez kodu serwisowego
+
+W protokole serwisowym ([`protokol-serwisowy.md`](protokol-serwisowy.md))
+odczyt konfiguracji wymaga 6-znakowego kodu serwisowego,
+ale w kodzie obsługi zapisu (komenda `0x02`) nie widać żadnej kontroli kodu,
+tylko kontrolę rozmiaru i sumy CRC.
+Jeśli to się potwierdzi, ktoś z fizycznym dostępem do gniazda RJ12
+(wewnątrz obudowy, zwykle chronionej czujnikiem sabotażu)
+może nadpisać całą konfigurację, łącznie z kodami użytkowników,
+bez znajomości kodu serwisowego. ❓
+
 ## Zdalne programowanie przez GPRS
 
 Od firmware'u 1.7 komenda SMS `[kod] connect IP:port`

@@ -50,9 +50,9 @@ Instalator OptimaGSM Managera zawiera standardowy sterownik FTDI (`ftd2xx`),
 co to potwierdza pośrednio.
 Pod Linuksem powinien działać natywnie jako `/dev/ttyUSB*` (sterownik `ftdi_sio`).
 
-Z firmware'u ❓: port serwisowy to najpewniej UART4 mikrokontrolera, 115200 b/s
-(zob. [`protokol-ramek.md`](protokol-ramek.md)).
-Nieznane: komendy protokołu serwisowego.
+Z firmware'u: port serwisowy to UART4 mikrokontrolera, 115200 b/s,
+komendy przesyłane XMODEM-em
+(zob. [`protokol-serwisowy.md`](protokol-serwisowy.md)).
 
 ### Magistrala RopamNET ✅
 

@@ -18,7 +18,7 @@ Format znaku zakładamy 8N1 ❓.
 |---|---|---|---|---|
 | 0 | UART1 | `0xBF806000` | 512 B | magistrala RopamNET (RS-485) ✅ |
 | 1 | UART2 | `0xBF806800` | 128 B | złącze EXP, moduł FGR-4 ❓ |
-| 2 | UART4 | `0xBF806200` | 1500 B | port serwisowy RS232TTL ❓ |
+| 2 | UART4 | `0xBF806200` | 1500 B | port serwisowy RS232TTL, XMODEM ([`protokol-serwisowy.md`](protokol-serwisowy.md)) |
 | 3 | UART5 | `0xBF806A00` | 1024 B | modem SIM900 (komendy AT) ✅ |
 
 Przesłanki:
@@ -27,8 +27,8 @@ Przesłanki:
   czyli sterowanie kierunkiem transceivera RS-485 ✅;
 - port 1: używają go funkcje wysyłające MMS ze zdjęciami z karty SD ✅,
   a pod debugowym przełącznikiem trafia tam też zrzut ramek `Rxframe adres:%x cmd:%x len:%x` ✅;
-- port 2: tam idzie zrzut wyjątku procesora `exception adress:%x ID:%i` ✅,
-  a odbiór działa przez DMA, co pasuje do dużych bloków konfiguracji ❓;
+- port 2: na nim działa XMODEM-owa obsługa komend programowania ✅
+  i tam idzie zrzut wyjątku procesora `exception adress:%x ID:%i` ✅;
 - port 3: wszystkie komendy `AT…` ✅.
 
 ## Format ramki
@@ -129,5 +129,4 @@ a po 150 ms ramkę właściwą ✅ (`FUN_9d053b2c`).
 
 - Mapa adresów paneli TPR, ekspanderów EXP-I8-RN/EXP-O8x-RN i ich komend
   (zacząć od `FUN_9d01d264`).
-- Protokół portu serwisowego (port 2): komendy odczytu i zapisu konfiguracji, tryb ON-LINE.
 - Weryfikacja na kablu: pasywny podsłuch RS-485 z 115200 8N1 i sprawdzenie CRC narzędziem `ropamnet.py check`.

@@ -13,9 +13,14 @@ public class Disasm extends GhidraScript {
     protected void run() throws Exception {
         for (String arg : getScriptArgs()) {
             Address a = toAddr(arg);
-            Function f = getFunctionAt(a);
+            Function f = getFunctionContaining(a);
             if (f == null) {
-                println("brak funkcji pod " + arg);
+                println("==== poza funkcją: " + arg);
+                Instruction i = getInstructionAt(a);
+                for (int n = 0; i != null && n < 60; n++) {
+                    println(i.getAddress() + "  " + i);
+                    i = i.getNext();
+                }
                 continue;
             }
             println("==== " + f.getName() + " @ " + a);
