@@ -47,14 +47,14 @@ na RX centrali w spoczynku jest ok. 3,4 V.
 Dlatego D6 przez 1 kΩ może zostać wpięty nawet razem z kablem;
 przy kolizji nadajników płynie najwyżej ok. 3,4 mA.
 TX centrali też pracuje w logice 3,3 V (w spoczynku ok. 3,2 V),
-więc D7 łączymy przez sam opornik 1 kΩ, bez dzielnika.
+więc D7 łączymy przez sam opornik 1–10 kΩ, bez dzielnika.
 Dzielnik 10 kΩ / 20 kΩ dawałby ok. 2,2 V,
 czyli mniej niż próg stanu wysokiego ESP32-C6 (0,75 × 3,3 V ≈ 2,5 V).
 
 | Gniazdo RJ12 | XIAO ESP32-C6 |
 |---|---|
 | GND | GND |
-| TX centrali | **D7** (GPIO17, odbiór) przez 1 kΩ |
+| TX centrali | **D7** (GPIO17, odbiór) przez 1–10 kΩ |
 | RX centrali | **D6** (GPIO16, nadawanie) przez 1 kΩ |
 
 TX centrali rozpoznasz po tym, że w spoczynku nadaje `C` co 2 s:
