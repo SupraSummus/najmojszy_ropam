@@ -1,9 +1,10 @@
 # Protokół serwisowy
 
 Protokół, którym OptimaGSM Manager programuje centralę.
-Odtworzony z firmware'u OptimaGSM v3.4,
-jeszcze niezweryfikowany na prawdziwym kablu.
-Oznaczenia: ✅ wynika wprost z kodu, ❓ wniosek albo przypuszczenie.
+Odtworzony z firmware'u OptimaGSM v3.4
+i sprawdzony na sprzęcie, także przez podsłuch oryginalnego Managera.
+Oznaczenia: ✅ wynika wprost z kodu, 🔌 sprawdzone na sprzęcie,
+❓ wniosek albo przypuszczenie.
 
 Klient: [`tools/ropam_serwis.py`](../tools/ropam_serwis.py).
 
@@ -78,11 +79,37 @@ Pozostałe są w `switch` w `FUN_9d03c3f0`.
 |---|---|---|
 | `0x01` | identyfikacja: 12 B, opis niżej; zapisuje w dzienniku zdarzenie programowania | ✅ sprawdzone na sprzęcie |
 | `0x02` | zapis konfiguracji: blob 52 412 B (v3.4) z CRC-16/XMODEM, zapis do pliku `0:config.rpm` i kopii `0:cfgcpy.rpm`; odpowiedź: status | ✅ |
-| `0x03` | odczyt konfiguracji: argument to 6-bajtowe „hasło komunikacji” (sekcja `COMM`); przy zgodności wysyła `0:config.rpm`, inaczej status 2 | ✅ status 2 przy złym haśle sprawdzony na sprzęcie |
+| `0x03` | odczyt konfiguracji: argument to 6-bajtowe „hasło komunikacji” (sekcja `COMM`); odpowiedź to dwie transmisje: status (1 = OK, 2 = złe hasło), a przy sukcesie konfiguracja (52 412 B, bloki 1024 B) | 🔌 |
+| `0x24` | stan centrali na żywo, 1100 B; Manager wysyła ją co ok. 0,5 s, póki jest połączony (podgląd ON-LINE) | 🔌 |
+| `0x2F` | koniec sesji ON-LINE; odpowiedź: status | 🔌 |
 | `0x07` | odczyt bloku 198 B (`0xC6`) | ✅ |
 | `0x08` | odczyt tablicy modułów magistrali, 198 B | ❓ |
 | `0x12` | wpisanie PIN-u karty SIM do modemu (`AT+CPIN`), opcja „WPISZ KOD PIN” z instrukcji | ✅ |
-| `0x04`, `0x05`, `0x0D`, `0x0F`–`0x31`, `0x4A`–`0x4C` | do rozpracowania | |
+| `0x4C` | raport diagnostyczny tekstem (m.in. statystyki ramek RopamNET) | ✅ |
+| `0x04`, `0x05`, `0x0D`, `0x0F`–`0x23`, `0x26`–`0x2E`, `0x30`, `0x31`, `0x4A`, `0x4B` | do rozpracowania | |
+
+## Jak pracuje OptimaGSM Manager
+
+Podsłuchane na sprzęcie (Manager 2.5 pod Wine, [`tools/wine_sniff.sh`](../tools/wine_sniff.sh)) 🔌:
+
+1. **Połączenie kablowe:** `0x01` (identyfikacja),
+   potem `0x24` w pętli co ok. 0,5 s, póki połączenie trwa.
+2. **Odczyt:** `0x03` z hasłem komunikacji,
+   centrala odsyła status, a potem całą konfigurację.
+   Odpytywanie `0x24` trwa dalej.
+3. **Rozłączenie:** `0x2F`.
+
+Manager nie pyta o hasło komunikacji,
+bo bierze je z otwartego pliku `.rpm` (pole „Hasło komunikacji” w zakładce komunikacji).
+Plik `.rpm` jest zaszyfrowany kluczem wbudowanym w Managera:
+Manager otwiera go bez pytania o hasło.
+
+Pakiety komend Managera są identyczne z tymi z naszego klienta
+(jeden blok 64 B z nagłówkiem `0x19`, dopełnienie `0x1A` i zera).
+Odczyt konfiguracji przez `tools/ropam_serwis.py`
+daje plik identyczny bajt w bajt z odczytem Managera 🔌.
+
+Nasz klient nie wysyła `0x24`, więc nie wprowadza centrali w podgląd ON-LINE.
 
 ### Odpowiedź na `0x01`
 
@@ -98,7 +125,8 @@ Odpowiedź przychodzi jednym blokiem 64 B (nagłówek `0x19`) z dopełnieniem.
 
 ## Konfiguracja w centrali (`config.rpm`)
 
-Blob o stałym rozmiarze, zaszytym w firmware'ze (`CONFIG_SIZE`, 52 412 B w v3.4) ✅:
+Blob o stałym rozmiarze, zaszytym w firmware'ze (`CONFIG_SIZE`, 52 412 B w v3.4) ✅,
+z CRC zgodnym z opisem poniżej 🔌:
 
 | Przesunięcie | Zawartość |
 |---|---|

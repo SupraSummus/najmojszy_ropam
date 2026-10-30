@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Klient protokołu serwisowego OptimaGSM (XMODEM na porcie RS232TTL).
 
-Odtworzony z firmware'u v3.4, jeszcze niezweryfikowany na sprzęcie.
+Odtworzony z firmware'u v3.4 i sprawdzony na sprzęcie
+(z OptimaGSM Managerem jako wzorcem).
 Obsługuje wyłącznie operacje odczytu.
 
 Użycie:
     ropam_serwis.py PORT nasluch [SEKUNDY]   # pokazuje, co nadaje centrala
     ropam_serwis.py PORT id                  # komenda 0x01
-    ropam_serwis.py PORT konfiguracja KOD PLIK   # komenda 0x03
-        KOD: 6 znaków albo hex:xxxxxxxxxxxx
+    ropam_serwis.py PORT konfiguracja HASŁO PLIK   # komenda 0x03
+        HASŁO: 6 znaków, hex:xxxxxxxxxxxx albo plik:ŚCIEŻKA (hex w pliku)
+    ROPAM_DEBUG=1 wypisuje każdy bajt na stderr.
 
 PORT to np. /dev/ttyUSB0. Wymaga pyserial.
 """
@@ -165,19 +167,23 @@ def main():
         print(strip_padding(receive(port)).hex(" "))
     elif cmd == "konfiguracja" and len(sys.argv) == 5:
         arg = sys.argv[3]
+        if arg.startswith("plik:"):
+            with open(arg[5:]) as f:
+                arg = "hex:" + f.read().strip()
         code = (bytes.fromhex(arg[4:]) if arg.startswith("hex:")
                 else arg.encode("ascii"))
         if len(code) != 6:
-            sys.exit("kod musi mieć 6 bajtów (tekst albo hex:xxxxxxxxxxxx)")
+            sys.exit("kod musi mieć 6 bajtów")
         send(port, bytes([0x03]) + code)
-        data = receive(port, timeout=120)
-        if len(data) <= 64:
-            status = int.from_bytes(data[:4], "little")
+        # Najpierw status (1 = OK, 2 = złe hasło), potem osobno konfiguracja.
+        status = int.from_bytes(receive(port)[:4], "little")
+        if status != 1:
             sys.exit(f"centrala nie wydała konfiguracji, status {status}"
-                     + (" (zły kod)" if status == 2 else ""))
+                     + (" (złe hasło)" if status == 2 else ""))
+        data = strip_padding(receive(port, timeout=120))
         with open(sys.argv[4], "wb") as f:
             f.write(data)
-        print(f"zapisano {len(data)} B (z dopełnieniem XMODEM)")
+        print(f"zapisano {len(data)} B")
     else:
         sys.exit(__doc__)
 
