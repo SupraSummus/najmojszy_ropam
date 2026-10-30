@@ -45,3 +45,35 @@ Szczegóły i środki ostrożności: [`docs/protokol-ramek.md`](../docs/protokol
 
 Zapisy z magistrali trzymamy w `private/`:
 żądania panelu zawierają kody użytkowników.
+
+## `most/`: Wi-Fi zamiast kabla serwisowego (niesprawdzone)
+
+Przezroczysty most TCP (port 2323) ↔ gniazdo serwisowe RJ12.
+Klient działa przez sieć tak samo jak przez kabel:
+
+```sh
+python3 tools/ropam_serwis.py socket://ADRES:2323 id
+```
+
+Każda komenda serwisowa włącza w centrali tryb ON-LINE na ok. 1,5 min
+([`docs/stan-centrali.md`](../docs/stan-centrali.md)),
+więc most nadaje się do konfiguracji i okazjonalnego podglądu,
+a nie do ciągłego monitoringu.
+
+### Połączenia
+
+Gniazdo RJ12 ma trzy używane żyły: masę, nadawanie (TX) i odbiór (RX) centrali.
+TX centrali rozpoznasz po tym, że w spoczynku nadaje `C` co 2 s
+(widać to szkicem `sniffer` i `picocom /dev/ttyACM0`).
+
+Procesor centrali pracuje na 3,3 V, ale poziomu na gnieździe nie znamy:
+zmierz stan spoczynkowy TX centrali.
+ESP32-C6 nie toleruje 5 V.
+
+| Gniazdo RJ12 | XIAO ESP32-C6 |
+|---|---|
+| GND | GND |
+| TX centrali | D7 przez 1 kΩ (3,3 V) albo dzielnik 10 kΩ / 20 kΩ do GND (5 V) |
+| RX centrali | D6 przez 1 kΩ |
+
+Dane sieci Wi-Fi: skopiuj `most/sekrety.h.przyklad` jako `most/sekrety.h`.

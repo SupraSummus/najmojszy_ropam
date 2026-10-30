@@ -15,3 +15,6 @@ build/
 __pycache__/
 *.pyc
 .venv/
+
+# Dane sieci Wi-Fi dla ESP32
+esp32/**/sekrety.h

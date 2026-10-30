@@ -1,0 +1,3 @@
+// Skopiuj jako sekrety.h i uzupełnij. sekrety.h jest w .gitignore.
+#define WIFI_SSID "nazwa-sieci"
+#define WIFI_HASLO "haslo-sieci"

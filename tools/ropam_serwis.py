@@ -17,7 +17,8 @@ Użycie:
         HASŁO: 6 znaków, hex:xxxxxxxxxxxx albo plik:ŚCIEŻKA (hex w pliku)
     ROPAM_DEBUG=1 wypisuje każdy bajt na stderr.
 
-PORT to np. /dev/ttyUSB0. Wymaga pyserial.
+PORT to np. /dev/ttyUSB0 albo socket://ADRES:2323 (most Wi-Fi z esp32/most).
+Wymaga pyserial.
 """
 import os
 import sys
@@ -199,7 +200,7 @@ def print_status(data):
 def main():
     if len(sys.argv) < 3:
         sys.exit(__doc__)
-    port = serial.Serial(sys.argv[1], 115200, timeout=1)
+    port = serial.serial_for_url(sys.argv[1], 115200, timeout=1)
     cmd = sys.argv[2]
     if cmd == "nasluch":
         end = time.monotonic() + float(sys.argv[3] if len(sys.argv) > 3
