@@ -80,13 +80,13 @@ Pozostałe są w `switch` w `FUN_9d03c3f0`.
 | `0x01` | identyfikacja: 12 B, opis niżej; zapisuje w dzienniku zdarzenie programowania | ✅ sprawdzone na sprzęcie |
 | `0x02` | zapis konfiguracji: blob 52 412 B (v3.4) z CRC-16/XMODEM, zapis do pliku `0:config.rpm` i kopii `0:cfgcpy.rpm`; odpowiedź: status | ✅ |
 | `0x03` | odczyt konfiguracji: argument to 6-bajtowe „hasło komunikacji” (sekcja `COMM`); odpowiedź to dwie transmisje: status (1 = OK, 2 = złe hasło), a przy sukcesie konfiguracja (52 412 B, bloki 1024 B) | 🔌 |
-| `0x24` | stan centrali na żywo, 1100 B; Manager wysyła ją co ok. 0,5 s, póki jest połączony (podgląd ON-LINE) | 🔌 |
-| `0x2F` | koniec sesji ON-LINE; odpowiedź: status | 🔌 |
+| `0x24` | stan centrali na żywo, 1100 B, opis w [`stan-centrali.md`](stan-centrali.md); Manager wysyła ją co ok. 0,5 s, póki jest połączony | 🔌 |
+| `0x26`, `0x2F` | status, a potem **restart centrali** (`SoftReset`); Manager wysyła `0x2F` przy rozłączeniu | ✅ 🔌 |
 | `0x07` | odczyt bloku 198 B (`0xC6`) | ✅ |
 | `0x08` | odczyt tablicy modułów magistrali, 198 B | ❓ |
 | `0x12` | wpisanie PIN-u karty SIM do modemu (`AT+CPIN`), opcja „WPISZ KOD PIN” z instrukcji | ✅ |
 | `0x4C` | raport diagnostyczny tekstem (m.in. statystyki ramek RopamNET) | ✅ |
-| `0x04`, `0x05`, `0x0D`, `0x0F`–`0x23`, `0x26`–`0x2E`, `0x30`, `0x31`, `0x4A`, `0x4B` | do rozpracowania | |
+| `0x04`, `0x05`, `0x0D`, `0x0F`–`0x23`, `0x27`–`0x2E`, `0x30`, `0x31`, `0x4A`, `0x4B` | do rozpracowania | |
 
 ## Jak pracuje OptimaGSM Manager
 
@@ -97,7 +97,7 @@ Podsłuchane na sprzęcie (Manager 2.5 pod Wine, [`tools/wine_sniff.sh`](../tool
 2. **Odczyt:** `0x03` z hasłem komunikacji,
    centrala odsyła status, a potem całą konfigurację.
    Odpytywanie `0x24` trwa dalej.
-3. **Rozłączenie:** `0x2F`.
+3. **Rozłączenie:** `0x2F`, które restartuje centralę.
 
 Manager nie pyta o hasło komunikacji,
 bo bierze je z otwartego pliku `.rpm` (pole „Hasło komunikacji” w zakładce komunikacji).
@@ -109,7 +109,9 @@ Pakiety komend Managera są identyczne z tymi z naszego klienta
 Odczyt konfiguracji przez `tools/ropam_serwis.py`
 daje plik identyczny bajt w bajt z odczytem Managera 🔌.
 
-Nasz klient nie wysyła `0x24`, więc nie wprowadza centrali w podgląd ON-LINE.
+Każda komenda (także z naszego klienta) włącza w centrali sesję serwisową na ok. 1,5 minuty,
+zob. [`stan-centrali.md`](stan-centrali.md).
+Nasz klient nie wysyła `0x24` w pętli ani nie wysyła `0x2F`, więc nie restartuje centrali.
 
 ### Odpowiedź na `0x01`
 

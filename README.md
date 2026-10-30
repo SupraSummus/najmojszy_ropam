@@ -25,6 +25,8 @@ Co wiemy, a czego nie, opisują pliki w [`docs/`](docs/):
   format plików `*.flsh` i co jest w odszyfrowanym firmware'ze,
 - [`docs/protokol-ramek.md`](docs/protokol-ramek.md):
   format ramek RopamNET odczytany z firmware'u,
+- [`docs/stan-centrali.md`](docs/stan-centrali.md):
+  stan na żywo (komenda 0x24), sesja serwisowa i restart,
 - [`docs/protokol-serwisowy.md`](docs/protokol-serwisowy.md):
   XMODEM-owy protokół programowania przez gniazdo RJ12,
 - [`docs/uwagi-bezpieczenstwa.md`](docs/uwagi-bezpieczenstwa.md):

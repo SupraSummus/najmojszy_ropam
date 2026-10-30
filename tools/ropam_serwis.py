@@ -4,10 +4,15 @@
 Odtworzony z firmware'u v3.4 i sprawdzony na sprzęcie
 (z OptimaGSM Managerem jako wzorcem).
 Obsługuje wyłącznie operacje odczytu.
+Celowo nie ma tu komend 0x26 i 0x2F: restartują centralę.
+
+Każda komenda włącza w centrali flagę sesji serwisowej na ok. 1,5 min,
+w czasie której część zdarzeń jest pomijana (docs/stan-centrali.md).
 
 Użycie:
     ropam_serwis.py PORT nasluch [SEKUNDY]   # pokazuje, co nadaje centrala
     ropam_serwis.py PORT id                  # komenda 0x01
+    ropam_serwis.py PORT stan [PLIK]         # komenda 0x24 (stan na żywo)
     ropam_serwis.py PORT konfiguracja HASŁO PLIK   # komenda 0x03
         HASŁO: 6 znaków, hex:xxxxxxxxxxxx albo plik:ŚCIEŻKA (hex w pliku)
     ROPAM_DEBUG=1 wypisuje każdy bajt na stderr.
@@ -80,11 +85,30 @@ def wait_for(port, wanted, timeout):
     return None
 
 
+def wait_fresh_invite(port, timeout, quiet=0.5):
+    """Czeka na 'C' poprzedzone ciszą na linii.
+
+    Zaległe bajty z przerwanych sesji (seria 'C', CAN-y) potrafią dotrzeć
+    nawet po reset_input_buffer(); prawdziwe zaproszenie to pojedyncze 'C'
+    co 2 s, więc przed nim linia milczy.
+    """
+    port.reset_input_buffer()
+    end = time.monotonic() + timeout
+    last = time.monotonic()
+    while time.monotonic() < end:
+        b = read_byte(port, 0.1)
+        now = time.monotonic()
+        if b is None:
+            continue
+        if b == CRC_REQ and now - last >= quiet:
+            return True
+        last = now
+    return False
+
+
 def send(port, data, timeout=10):
     """Wysyła dane XMODEM-em do centrali (centrala zaczyna od 'C')."""
-    # Stare 'C' i CAN-y z poprzednich sesji nie są zaproszeniem.
-    port.reset_input_buffer()
-    if wait_for(port, {CRC_REQ}, timeout) is None:
+    if not wait_fresh_invite(port, timeout):
         raise TimeoutError("centrala nie wysłała 'C'")
     head, size = block_size(len(data))
     for n, off in enumerate(range(0, max(len(data), 1), size), 1):
@@ -98,7 +122,8 @@ def send(port, data, timeout=10):
             + crc.to_bytes(2, "big")
         for _ in range(10):
             write(port, packet)
-            if wait_for(port, {ACK, NAK, CAN}, 2) == ACK:
+            # Liczy się tylko ACK; NAK albo cisza oznacza ponowienie.
+            if wait_for(port, {ACK, NAK}, 2) == ACK:
                 break
         else:
             raise IOError(f"blok {n} nie potwierdzony")
@@ -150,6 +175,27 @@ def strip_padding(data):
     return data[:i] if i >= 0 and not any(data[i + 1:]) else data
 
 
+STATUS_SIZE = 1100
+
+
+def bits(value, count):
+    return [i + 1 for i in range(count) if value >> i & 1]
+
+
+def print_status(data):
+    """Wypisuje pola stanu (komenda 0x24) rozpoznane w firmware'ze."""
+    u64 = [int.from_bytes(data[o:o + 8], "little") for o in (0, 8, 16, 24)]
+    print("wejścia naruszone:", bits(u64[0], 48) or "-")
+    print("wejścia w sabotażu:", bits(u64[1], 48) or "-")
+    print("wejścia z flagą 2 (?):", bits(u64[2], 48) or "-")
+    print("wejścia z flagą 3 (?):", bits(u64[3], 48) or "-")
+    outputs = int.from_bytes(data[0x30:0x34], "little")
+    print("wyjścia włączone:", bits(outputs, 32) or "-")
+    analog = [int.from_bytes(data[0xDC + 2 * i:0xDE + 2 * i], "little")
+              for i in range(48)]
+    print("wartości linii wejść (surowe):", analog)
+
+
 def main():
     if len(sys.argv) < 3:
         sys.exit(__doc__)
@@ -165,6 +211,18 @@ def main():
     elif cmd == "id":
         send(port, bytes([0x01]))
         print(strip_padding(receive(port)).hex(" "))
+    elif cmd == "stan" and len(sys.argv) in (3, 4):
+        send(port, bytes([0x24]))
+        data = receive(port)[:STATUS_SIZE]
+        # Opcjonalna druga transmisja (odpowiedź modemu): centrala czeka
+        # wtedy na nasze 'C', zamiast od razu nadawać własne.
+        if wait_for(port, {CRC_REQ}, 1.5) is None:
+            extra = strip_padding(receive(port))
+            print("modem:", extra.decode("latin-1", "replace").strip())
+        if len(sys.argv) == 4:
+            with open(sys.argv[3], "wb") as f:
+                f.write(data)
+        print_status(data)
     elif cmd == "konfiguracja" and len(sys.argv) == 5:
         arg = sys.argv[3]
         if arg.startswith("plik:"):

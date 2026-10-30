@@ -71,7 +71,7 @@
 0x9d04fabc f hub_poll            Cykliczna wymiana stanu 8 modułów IO/IOE z koncentratorem.
 
 # --- protokół serwisowy (port 2 lokalnie, port 3 przez GPRS), docs/protokol-serwisowy.md ---
-0x9d02b640 f task_service        Zadanie RTOS: po starcie czeka, potem w pętli woła svc_dispatch.
+0x9d02b640 f task_service        Zadanie RTOS: po starcie czeka, potem w pętli woła svc_dispatch i zarządza flagą sesji w g_sys_flags.
 0x9d03c3f0 f svc_dispatch        Odbiera pakiet komendy i wykonuje komendę wg pierwszego bajtu.
 0x9d016a04 f svc_dispatch_ext    Komendy 0x32–0x45 z tablicy svc_ext_handlers, gdy ustawiona flaga. ❓ tryb ON-LINE
 0xa001738c d svc_ext_handlers    Tablica wskaźników obsługi komend 0x32–0x45.
@@ -79,6 +79,17 @@
 0xa001fff4 d g_boot_version      Wersja × 10 zostawiona na końcu RAM-u, najpewniej przez bootloader. ❓
 0xa00002fc d g_panel_id          Unikalne ID centrali, 8 B ("ID centrali:%02X…"); bajty 4–11 odpowiedzi na komendę 0x01.
 0x9d011470 f status_header       Składa nagłówek statusu: '*', '4', wersja firmware'u, wersja z g_boot_version, maska modułów. ❓
+0x9d01c1e4 f status_header       Nagłówek stanu na żywo (220 B): maski wejść, wyjścia, strefy, flagi, czas; część odpowiedzi na 0x24.
+0x9d0018a4 f input_state_is_1    Czy wejście ma stan 1 (bajt 2 wpisu w tablicy stanów). ❓ naruszenie
+0x9d001920 f input_state_is_3    Czy wejście ma stan 3. ❓ sabotaż
+0x9d008b28 f outputs_mask        Maska włączonych wyjść 1–32 (bit 0 każdego bajtu tablicy wyjść).
+0x9d05e388 f shared_lock         Blokuje muteks struktury współdzielonej i zwraca wskaźnik na dane. ❓
+0x9d05e3b8 f shared_unlock       Zwalnia muteks struktury współdzielonej. ❓
+0xa000015c d g_inputs_state      Uchwyt tablicy stanów wejść (4 B na wejście, bajt 2 = stan).
+0xa000015a d g_sys_flags         Flagi systemowe; bit 1 = sesja serwisowa (ON-LINE), gaśnie ok. 1,5 min po ostatniej komendzie.
+0xa00012fc d g_svc_buf           Bufor odpowiedzi protokołu serwisowego (m.in. 1100 B stanu dla 0x24).
+0x9d06cc10 f SoftReset           PLIB: wstrzymanie DMA, odblokowanie SYSKEY, zapis RSWRST, restart procesora.
+0x9d05f714 f svc_end_session     Zakończenie sesji: używane przez komendy 0x26/0x2F, kończy się SoftReset.
 0x9d03c2dc f svc_send_status     Odsyła 4-bajtowy status (little-endian).
 0x9d03c374 f svc_check_code      Porównuje 6 bajtów z hasłem komunikacji z konfiguracji.
 0xa0015d25 d g_service_code      Hasło komunikacji (6 B), w Managerze pole „Hasło komunikacji”; bajty 1–6 sekcji COMM.

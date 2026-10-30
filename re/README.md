@@ -33,4 +33,4 @@ Wnioski wyższego poziomu (protokoły, formaty) opisujemy w [`docs/`](../docs/).
 
 | Obraz | Funkcji | Nazwanych |
 |---|---|---|
-| `optimagsm_v3.4_pl` | 1131 | 75 |
+| `optimagsm_v3.4_pl` | 1131 | 83 |

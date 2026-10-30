@@ -23,7 +23,7 @@ char hub_poll(void)
   if (DAT_a0000003 != '\0') {
     DAT_a0000003 = DAT_a0000003 + -1;
   }
-  if (((_DAT_a000015a & 3) >> 1 == 0) && (DAT_a00000b8 = DAT_a00000b8 + 1, (DAT_a00000b8 & 3) != 0))
+  if (((_g_sys_flags & 3) >> 1 == 0) && (DAT_a00000b8 = DAT_a00000b8 + 1, (DAT_a00000b8 & 3) != 0))
   {
     if (DAT_a0000003 == '\0') {
       for (local_60 = 0; local_60 < 8; local_60 = local_60 + 1) {
@@ -164,14 +164,14 @@ char hub_poll(void)
     }
   }
   else {
-    local_50 = FUN_9d05e388(DAT_a00001b0);
+    local_50 = shared_lock(DAT_a00001b0);
     if (DAT_a0015a74 < 0) {
       *(byte *)(local_50 + 1) = *(byte *)(local_50 + 1) & 0xbf;
     }
     else {
       *(byte *)(local_50 + 1) = *(byte *)(local_50 + 1) & 0xbf | (local_53 & 1) << 6;
     }
-    FUN_9d05e3b8(DAT_a00001b0);
+    shared_unlock(DAT_a00001b0);
   }
   return local_54;
 }
