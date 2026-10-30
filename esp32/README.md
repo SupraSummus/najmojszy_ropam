@@ -111,6 +111,10 @@ po kolei:
 1. kabel USB-MGSM musi być odłączony od żył gniazda, nie tylko od komputera:
    niezasilony FT232BL zasila się przez diody wejścia z TX centrali
    i może oddawać sygnał na RX ❓;
+   jeśli ma zostać wpięty, podłącz go do USB
+   i odłącz jego nadajnik: `python3 tools/ftdi_odlacz.py`
+   (tryb bit-bang, wszystkie nóżki jako wejścia;
+   do zwykłej pracy kabel wraca po ponownym podłączeniu USB);
 2. miernikiem: ciągłość od wolnego końca opornika D6 do żyły RX centrali;
 3. przy wszystkim odłączonym: między żyłami TX i RX nie może być zwarcia;
 4. przy wgranym moście i odłączonym kablu
