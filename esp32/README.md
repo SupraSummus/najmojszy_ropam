@@ -40,7 +40,10 @@ centrala słyszała własne echo
 ([`docs/protokol-serwisowy.md`](../docs/protokol-serwisowy.md#objaw-centrala-słyszy-własne-echo)),
 choć D6 nadawał i w spoczynku trzymał stan wysoki
 (sprawdzone programem `ropam-piny`, niżej).
-Coś silniejszego niż D6 za opornikiem 1 kΩ steruje więc linią RX centrali,
+Program `ropam-d6` trzymał potem D6 przez 2 s w stanie niskim
+i rytm echa nie zmienił się ani trochę:
+D6 nie ma żadnego wpływu na RX centrali.
+Linią steruje więc coś silnego (kabel, zwarcie TX z RX),
 albo D6 do niej nie dochodzi; zob. „Diagnostyka”.
 
 ### Połączenia
@@ -90,6 +93,16 @@ esp32/rvuos/zbuduj.sh ropam-most wgraj
 
 Po starcie z flasha obie nóżki mają w IO MUX funkcję 0,
 czyli bezpośrednio U0TXD i U0RXD, z podciąganiem.
+
+`rvuos/ropam-d6.c` przekazuje komputerowi to, co nadaje centrala,
+i przez 2 s (między znacznikami `#D6=0` i `#D6=1`) trzyma D6 w stanie niskim.
+Jeśli D6 dochodzi do RX centrali, w tej fazie zmienia się jej odpowiedź
+(echo znika, centrala odbiera bajty 0x00 z błędem ramki i je pomija).
+Wynik najprościej obejrzeć w wyjściu narzędzia wgrywającego:
+
+```sh
+esp32/rvuos/zbuduj.sh ropam-d6 wgraj
+```
 
 Gdy centrala słyszy własne echo
 (`ropam_serwis.py` mówi wtedy „centrala nadaje bez przerwy”),
