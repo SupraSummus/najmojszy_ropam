@@ -91,21 +91,21 @@ undefined4 tpr_service(int param_1)
                                0xa001700e);
     rnet_build_frame(&g_rnet_tx,cVar9,0x13,local_38,1);
     rnet_send_frame(0,&g_rnet_tx);
-    FUN_9d0521c0(0x62,0);
+    event_log(0x62,0);
     break;
   case 0x14:
     uVar6 = FUN_9d05f4d8(0xa001700d,g_rnet_rx._3_1_ + -0x5ffe8ff3);
     local_128 = CONCAT31(local_128._1_3_,uVar6);
     rnet_build_frame(&g_rnet_tx,cVar9,0x14,&local_128,1);
     rnet_send_frame(0,&g_rnet_tx);
-    FUN_9d0521c0(100,0);
+    event_log(100,0);
     break;
   case 0x15:
     memcpy(local_30,0xa001700d,4);
     local_38[0] = FUN_9d05f3bc(local_30[0]);
     rnet_build_frame(&g_rnet_tx,cVar9,0x15,local_38,1);
     rnet_send_frame(0,&g_rnet_tx);
-    FUN_9d0521c0(99,0);
+    event_log(99,0);
     g_rnet_rx._3_1_ = '\x01';
     memcpy(&DAT_a001700c,local_30,4);
     rnet_queue_msg(0x30,0xa001700b);
@@ -129,7 +129,7 @@ undefined4 tpr_service(int param_1)
     break;
   case 0x18:
     memcpy(&local_28,0xa001700d,8);
-    FUN_9d0521c0(0xd,1);
+    event_log(0xd,1);
     iVar10 = FUN_9d01ced4(local_28,local_24);
     if (iVar10 == 0) {
       local_128 = (uint)local_128._1_3_ << 8;
@@ -334,7 +334,7 @@ LAB_9d01ec50:
     cVar9 = FUN_9d02775c(DAT_a001700c._1_1_,DAT_a001700c._2_1_,DAT_a001700c._3_1_);
     local_14 = CONCAT13(cVar9 + '\x01',(undefined3)local_14);
     FUN_9d041f64(&local_18);
-    FUN_9d0521c0(0x28,0);
+    event_log(0x28,0);
     break;
   case 0x29:
     if (DAT_a001700c._1_1_ == 0) {
@@ -347,7 +347,7 @@ LAB_9d01ec50:
       FUN_9d004c2c(2);
       FUN_9d004c2c(3);
     }
-    FUN_9d0521c0(0x1c,_g_sys_flags & 1);
+    event_log(0x1c,_g_sys_flags & 1);
     break;
   case 0x30:
     local_30[0] = (uint)DAT_a001700c._1_1_;

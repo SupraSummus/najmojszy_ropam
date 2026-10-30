@@ -87,13 +87,13 @@ void bus_poll_round(char param_1)
         (&DAT_a00032f8)[(uint)local_10 * 0x10] = 0;
         if ((&DAT_a00159a3)[(uint)local_10 * 0xb] == '\x01') {
           (&DAT_a00159a3)[(uint)local_10 * 0xb] = 2;
-          FUN_9d0521c0(0x76,local_10);
+          event_log(0x76,local_10);
           if ((byte)(&DAT_a00159a2)[(uint)local_10 * 0xb] < 4) {
             FUN_9d00703c(0,(&DAT_a00159a2)[(uint)local_10 * 0xb],2,local_10);
           }
         }
         if (((byte)(&DAT_a00159a1)[(uint)local_10 * 0xb] & 0x7f) >> 6 != 0) {
-          FUN_9d0521c0(0x82,local_10);
+          event_log(0x82,local_10);
           (&DAT_a00159a1)[(uint)local_10 * 0xb] = (&DAT_a00159a1)[(uint)local_10 * 0xb] & 0xbf;
         }
         if ((((byte)(&DAT_a00159a1)[(uint)local_10 * 0xb] & 0x1f) >> 4 == 0) ||
@@ -133,14 +133,14 @@ void bus_poll_round(char param_1)
             if ((((byte)(&DAT_a00159a1)[(uint)local_10 * 0xb] & 7) >> 2 != 1) &&
                (((byte)(&DAT_a00159a1)[(uint)local_10 * 0xb] & 0xf) >> 3 != 0)) {
               FUN_9d00703c(0,(&DAT_a00159a2)[(uint)local_10 * 0xb],4,local_10);
-              FUN_9d0521c0(0x78,local_10);
+              event_log(0x78,local_10);
               (&DAT_a00159a1)[(uint)local_10 * 0xb] = (&DAT_a00159a1)[(uint)local_10 * 0xb] & 0xf7;
             }
           }
           else {
             FUN_9d01ef08((&DAT_a00159a2)[(uint)local_10 * 0xb],local_10 + 0x91);
             FUN_9d007300((&DAT_a00159a2)[(uint)local_10 * 0xb],3,local_10);
-            FUN_9d0521c0(0x77,local_10);
+            event_log(0x77,local_10);
             (&DAT_a00159a1)[(uint)local_10 * 0xb] = (&DAT_a00159a1)[(uint)local_10 * 0xb] & 0xf7 | 8
             ;
           }
@@ -175,7 +175,7 @@ void bus_poll_round(char param_1)
               (&DAT_a0001236)[(uint)local_f * 8] = 0xff;
             }
           }
-          FUN_9d0521c0(0x75,local_10);
+          event_log(0x75,local_10);
           (&DAT_a00159a3)[(uint)local_10 * 0xb] = 1;
           if (((&DAT_a00159a4)[(uint)local_10 * 0xb] != '\0') && (param_1 != '\x01')) {
             FUN_9d003d84((&DAT_a00159a5)[(uint)local_10 * 0xb],(&DAT_a00159a4)[(uint)local_10 * 0xb]

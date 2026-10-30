@@ -64,10 +64,10 @@ undefined4 svc_dispatch(void)
     uStack_30e = (undefined2)((uint)DAT_a0000300 >> 0x10);
     svc_transmit(local_318,0xc);
     if (((DAT_a000277c._1_1_ & 0x7f) >> 6 == 0) && ((DAT_a000277e & 0x3f) >> 5 == 0)) {
-      FUN_9d0521c0(0x1b,0);
+      event_log(0x1b,0);
     }
     else {
-      FUN_9d0521c0(0x1b,2);
+      event_log(0x1b,2);
     }
     FUN_9d05e3e4(DAT_a0000118,auStack_54,0);
     local_3c = 0;
@@ -93,7 +93,7 @@ LAB_9d03c8d4:
           *(byte *)(iVar4 + 3) = *(byte *)(iVar4 + 3) & 0xef;
           shared_unlock(DAT_a00001b0);
           cfg_load_all();
-          FUN_9d001ba0();
+          inputs_from_config();
           FUN_9d009454();
           DAT_a0000088 = 1;
           if (DAT_a0000264 != '\0') {
@@ -332,7 +332,7 @@ LAB_9d03c8d4:
     uVar3 = status_header(0,&g_svc_buf);
     FUN_9d0017a0();
     for (local_338 = 0; local_338 < 0x30; local_338 = local_338 + 1) {
-      memcpy(&g_svc_buf + (uint)uVar3 + local_338 * 2,&DAT_a0002b64 + local_338 * 10,2);
+      memcpy(&g_svc_buf + (uint)uVar3 + local_338 * 2,&g_inputs_rt + local_338 * 10,2);
     }
     memcpy(&g_svc_buf + (ushort)(uVar3 + 0x60),&g_modules,0xc6);
     memcpy(&g_svc_buf + (ushort)(uVar3 + 0x126),&DAT_a0000280,DAT_a0015a16);
@@ -447,7 +447,7 @@ LAB_9d03c8d4:
       FUN_9d004c2c(2);
       FUN_9d004c2c(3);
     }
-    FUN_9d0521c0(0x1c,_g_sys_flags & 1);
+    event_log(0x1c,_g_sys_flags & 1);
     svc_send_status(1);
     break;
   case 0x4a:

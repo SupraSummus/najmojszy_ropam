@@ -59,6 +59,15 @@
 0xa0000178 d g_rnet_cnt_badcrc
 0xa000027a d g_rnet_timeout      1, gdy ostatni rnet_read_byte nie doczekał się bajtu.
 
+# --- konfiguracja wejść, wyjść, stref; docs/konfiguracja.md ---
+0x9d001ba0 f inputs_from_config  Przepisuje rekordy INPUT (168 B) do struktur roboczych wejść (40 B): typ, czasy, strefy, flagi.
+0x9d005394 f input_react         Reakcja na zmianę wejścia wg typu (switch 0–10) i stanu stref; zapisuje zdarzenia (1, 5, 6, 7, 8, 10, 0x0B, 0x0C).
+0x9d0521c0 f event_log           Zapis zdarzenia do dziennika: kod zdarzenia i argument (np. numer wejścia).
+0xa0003980 d g_cfg_inputs        Sekcja INPUT w RAM: 48 × 168 B (nazwa, typ +0x16, reakcja +0x18, blokada +0x20, flagi/strefy +0x24, polaryzacja +0x28).
+0xa0006900 d g_cfg_outputs       Sekcja OUT w RAM: 32 × 224 B (nazwa, źródła +0x18, czas +0x1C).
+0xa00038bc d g_cfg_zones         Sekcja STREFY w RAM: 4 × 44 B (nazwa, czas na wejście +0x18, czas na wyjście +0x1C).
+0xa0002b64 d g_inputs_rt         Struktury robocze wejść: 48 × 40 B; +0x0B..+0x0E = przynależność do stref 1–4, +0x0F = typ.
+
 # --- organizacja magistrali i panele TPR, docs/protokol-ramek.md ---
 0x9d02ace0 f task_bus            Zadanie magistrali: zlecenia innych zadań, obieg odpytywania, co 50 obiegów rozgłoszenie stanu (0x10), co 410 ramka 0x3C.
 0x9d0290a0 f bus_poll_round      Obieg po 18 gniazdach modułów; numer gniazda wybiera obsługę (1–4 TPR, 9 koncentrator, …).

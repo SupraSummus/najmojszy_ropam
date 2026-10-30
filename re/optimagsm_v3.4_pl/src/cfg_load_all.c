@@ -12,13 +12,13 @@ undefined1 cfg_load_all(void)
   int local_10;
   
   FUN_9d06e628();
-  iVar2 = cfg_section_get(s_INPUT_9d06b7c8,&DAT_a0003980);
-  if (((((((iVar2 == 0) || (iVar2 = cfg_section_get(&DAT_9d06b7d0,&DAT_a0006900), iVar2 == 0)) ||
+  iVar2 = cfg_section_get(s_INPUT_9d06b7c8,&g_cfg_inputs);
+  if (((((((iVar2 == 0) || (iVar2 = cfg_section_get(&DAT_9d06b7d0,&g_cfg_outputs), iVar2 == 0)) ||
          (iVar2 = cfg_section_get(&DAT_9d06b7d4,&DAT_a0015a68), iVar2 == 0)) ||
         ((iVar2 = cfg_section_get(&DAT_9d06b7d8,&DAT_a00154f4), iVar2 == 0 ||
          (iVar2 = cfg_section_get(s_COUNT_9d06b7e0,&DAT_a000396c), iVar2 == 0)))) ||
        ((iVar2 = cfg_section_get(s_TIMES_9d06b7e8,&DAT_a0015d14), iVar2 == 0 ||
-        ((iVar2 = cfg_section_get(s_STREFY_9d06b7f0,&DAT_a00038bc), iVar2 == 0 ||
+        ((iVar2 = cfg_section_get(s_STREFY_9d06b7f0,&g_cfg_zones), iVar2 == 0 ||
          (iVar2 = cfg_section_get(&DAT_9d06b7f8,&DAT_a0015c64), iVar2 == 0)))))) ||
       (iVar2 = cfg_section_get(&DAT_9d06b800,&g_cfg_comm), iVar2 == 0)) ||
      (((((iVar2 = cfg_section_get(s_GPRSCFG_9d06b808,&DAT_a00151bc), iVar2 == 0 ||
