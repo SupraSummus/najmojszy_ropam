@@ -112,12 +112,96 @@ najpewniej koncentrator Hub-IQPLC ❓.
 | `0xF6` | 6 | `FUN_9d04f994` |
 | `0xF7` | 0 | `FUN_9d04fa08` |
 
-### Inne (port 0)
+## Organizacja magistrali
 
-Komendy `0x10`, `0x2B`, `0x3C` wysyłane pod adres podany w argumencie
-(`FUN_9d01cde0`, `FUN_9d01ce74`, `FUN_9d01cd4c`).
-Główna pętla obsługi magistrali to `FUN_9d01d264` ❓,
-prawdopodobnie odpytywanie paneli TPR i ekspanderów.
+### Gniazda modułów
+
+Centrala trzyma tablicę 18 gniazd po 11 B (`g_modules`) ✅.
+Bajt 0 to adres na magistrali, bit 0 bajtu 1 oznacza moduł aktywny.
+Numer gniazda ma stałe znaczenie (`bus_poll_round`) ✅:
+
+| Gniazdo | Obsługa |
+|---|---|
+| 1–4 | panele dotykowe TPR:1–4 (`tpr_service`) |
+| 5 | `FUN_9d05d0a0` ❓ |
+| 6, 7 | ekspandery na magistrali ❓ (np. EXP-I8-RN) |
+| 8 | moduł na porcie 1 (złącze EXP) ❓ |
+| 9 | koncentrator Hub-IQPLC (`hub_poll`) |
+| 10 | `FUN_9d058b88` ❓ |
+| 11, 12 | `FUN_9d066c0c` ❓ (np. APx-Aero) |
+| 13, 14 | `FUN_9d0635f0` ❓ |
+| 15 | zarządzanie sesją zdalną ❓ |
+
+Tablica jest też częścią odpowiedzi na komendę serwisową `0x24`
+([`stan-centrali.md`](stan-centrali.md)).
+
+### Cykl pracy
+
+Zadanie magistrali (`task_bus`) w pętli ✅:
+
+1. obsługuje zlecenia od innych zadań,
+   np. wysłanie ustawień paneli (sekcje `M_TPR1`–`M_TPR4`, po 2920 B)
+   albo identyfikację modułów;
+2. jeśli zleceń nie ma, wykonuje obieg odpytywania aktywnych gniazd (`bus_poll_round`),
+   każde gniazdo ma własny licznik okresu;
+3. co 50 obiegów rozgłasza stan systemu ramką `0x10` na adres `0xFE`;
+4. co 410 obiegów rozgłasza ramkę `0x3C` na adres `0xFE`;
+5. między obiegami czeka ok. 100 ms (`os_delay(100)`).
+
+### Rozgłaszany stan: komenda `0x10`
+
+Dane ramki to dokładnie 220-bajtowy nagłówek stanu (`status_header`),
+ten sam co na początku odpowiedzi na komendę serwisową `0x24` ✅:
+maski stanów wejść, maska wyjść, stan stref, flagi i czas
+(opis pól w [`stan-centrali.md`](stan-centrali.md)).
+Adres `0xFE` oznacza rozgłoszenie bez potwierdzenia.
+
+**Bierny podsłuch magistrali wystarczy więc,
+żeby znać pełny stan systemu**,
+bez żadnej sesji serwisowej i bez wpływu na pracę centrali.
+
+## Panel TPR (gniazda 1–4)
+
+Obsługa jednego panelu (`tpr_service`) ✅:
+
+1. centrala wysyła odpytanie `[adres][0x2B][0]`;
+2. panel odpowiada ramką `[0xAA][komenda][długość][dane][CRC]`
+   ze swoim żądaniem;
+3. centrala obsługuje żądanie i odsyła `[adres][ta sama komenda][długość][dane][CRC]`.
+
+Żądania panelu:
+
+| Komenda | Dane od panelu | Działanie centrali | Odpowiedź |
+|---|---|---|---|
+| `0x11` | 10 B | stan panelu: m.in. napięcie zasilania, sabotaż obudowy, wejścia panelu | brak |
+| `0x12` | kod | weryfikacja kodu | 2 B: numer użytkownika i uprawnienia |
+| `0x13` | kod, … | ❓, zdarzenie `0x62` w dzienniku | 1 B |
+| `0x14` | kod, … | ❓, zdarzenie `0x64` | 1 B |
+| `0x15` | 4 B | ❓, zdarzenie `0x63` | 1 B |
+| `0x16` | strefa, tryb | działanie na strefie bez kodu (szybkie uzbrojenie ❓) | 1 = OK, `0xFE` = zła strefa, `0x65` = odmowa |
+| `0x18` | 8 B | ❓, zdarzenie `0x0D` | 1 B: 1 = OK |
+| `0x1C` | kod, strefy, tryb | **uzbrojenie stref kodem** | numer użytkownika albo `0xFE`/`0x65` |
+| `0x1D` | kod, strefy | działanie kodem na strefach ❓ (rozbrojenie albo kasowanie alarmu) | numer użytkownika |
+| `0x1E` | – | ❓ | 3 B |
+| `0x20` | zakres | odczyt dziennika zdarzeń, rekordy po 19 B | seria ramek |
+| `0x23`, `0x24` | podkomenda | przesyłanie ustawień panelu w obie strony (wiele ramek, kontynuacja `'!'`) | |
+| `0x25`–`0x40` | | do rozpracowania | |
+
+### Kody i strefy
+
+- Kod jest napisem (porównanie `strcmp`) ✅.
+  W żądaniu `0x1C` bajt danych 0 to długość kodu ❓ (razem z końcowym zerem),
+  kod zaczyna się od bajtu 2,
+  a zaraz za nim jest bajt stref i trybu ✅.
+- Bajt stref i trybu: młodsze 4 bity to **maska stref 1–4**,
+  starsze 4 bity to tryb (niezerowy = czuwanie nocne) ✅.
+- Weryfikacja kodu (`code_lookup`) przeszukuje tablicę 32 użytkowników po 34 B
+  (kod jako napis, bajt `+0x0D` to uprawnienia) ✅.
+  Czterocyfrowy kod serwisowy daje numer 100, brak dopasowania `0xFF`.
+- Stan strefy to 8 B ✅:
+  młodsze 4 bity pierwszego słowa to stan (3 = gotowa, rozbrojona; 5 = odliczanie czasu na wyjście ❓),
+  bit 11 = czuwanie nocne,
+  drugie słowo to licznik czasu na wyjście w ms.
 
 ### Port 1
 
@@ -127,6 +211,8 @@ a po 150 ms ramkę właściwą ✅ (`FUN_9d053b2c`).
 
 ## Do zrobienia
 
-- Mapa adresów paneli TPR, ekspanderów EXP-I8-RN/EXP-O8x-RN i ich komend
-  (zacząć od `FUN_9d01d264`).
-- Weryfikacja na kablu: pasywny podsłuch RS-485 z 115200 8N1 i sprawdzenie CRC narzędziem `ropamnet.py check`.
+- Ekspandery (gniazda 6, 7) i moduły w gniazdach 10–14.
+- Dokładny układ żądań `0x12`–`0x1D` (pola przed kodem) i komend `0x25`–`0x40`.
+- Weryfikacja na kablu: pasywny podsłuch RS-485 z 115200 8N1,
+  sprawdzenie CRC narzędziem `ropamnet.py check`
+  i porównanie ramki `0x10` z odpowiedzią na `0x24`.

@@ -182,7 +182,7 @@ LAB_9d03c8d4:
     iVar4 = FUN_9d05db64(local_c);
     FUN_9d05d9dc(local_c);
     if (iVar4 == 0x30) {
-      svc_transmit(&DAT_a00159a0,0xc6);
+      svc_transmit(&g_modules,0xc6);
     }
     break;
   case 0xd:
@@ -334,7 +334,7 @@ LAB_9d03c8d4:
     for (local_338 = 0; local_338 < 0x30; local_338 = local_338 + 1) {
       memcpy(&g_svc_buf + (uint)uVar3 + local_338 * 2,&DAT_a0002b64 + local_338 * 10,2);
     }
-    memcpy(&g_svc_buf + (ushort)(uVar3 + 0x60),&DAT_a00159a0,0xc6);
+    memcpy(&g_svc_buf + (ushort)(uVar3 + 0x60),&g_modules,0xc6);
     memcpy(&g_svc_buf + (ushort)(uVar3 + 0x126),&DAT_a0000280,DAT_a0015a16);
     uVar3 = (ushort)DAT_a0015a16 + uVar3 + 0x126;
     memcpy(&g_svc_buf + uVar3,&DAT_a0001eb4,0x12);

@@ -29,7 +29,7 @@ undefined1 cfg_load_all(void)
         ((iVar2 = cfg_section_get(&DAT_9d06b82c,&DAT_a0015520), iVar2 == 0 ||
          ((iVar2 = cfg_section_get(&DAT_9d06b834,&DAT_a0015dd0), iVar2 == 0 ||
           (iVar2 = cfg_section_get(s_M_RF4_9d06b83c,&DAT_a0000f70), iVar2 == 0)))))))) ||
-      ((iVar2 = cfg_section_get(&DAT_9d06b844,&DAT_a00159a0), iVar2 == 0 ||
+      ((iVar2 = cfg_section_get(&DAT_9d06b844,&g_modules), iVar2 == 0 ||
        (iVar2 = cfg_section_get(s_APCFG_9d06b848,&DAT_a00010c8), iVar2 == 0)))))) {
     uVar1 = 0;
   }

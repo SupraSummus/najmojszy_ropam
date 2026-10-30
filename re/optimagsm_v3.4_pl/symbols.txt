@@ -59,6 +59,24 @@
 0xa0000178 d g_rnet_cnt_badcrc
 0xa000027a d g_rnet_timeout      1, gdy ostatni rnet_read_byte nie doczekał się bajtu.
 
+# --- organizacja magistrali i panele TPR, docs/protokol-ramek.md ---
+0x9d02ace0 f task_bus            Zadanie magistrali: zlecenia innych zadań, obieg odpytywania, co 50 obiegów rozgłoszenie stanu (0x10), co 410 ramka 0x3C.
+0x9d0290a0 f bus_poll_round      Obieg po 18 gniazdach modułów; numer gniazda wybiera obsługę (1–4 TPR, 9 koncentrator, …).
+0x9d01d264 f tpr_service         Obsługa panelu TPR: odpytanie 0x2B, odbiór żądania panelu i odpowiedź (0x11 stan, 0x1C uzbrojenie kodem, …).
+0x9d01ce74 f rnet_poll           Odpytanie urządzenia: [adres][0x2B][0].
+0x9d01cde0 f rnet_bcast_status   Ramka 0x10 z 220-bajtowym nagłówkiem stanu (status_header), zwykle na adres 0xFE.
+0x9d01cd4c f rnet_bcast_3c       Ramka 0x3C z danymi z FUN_9d01c9bc, zwykle na adres 0xFE.
+0x9d0535dc f rnet_build_frame    Wypełnia ramkę: adres, komenda, długość, dane.
+0x9d0536d0 f rnet_send_multi     Wysyła dłuższy blok w wielu ramkach.
+0x9d05366c f rnet_queue_msg      Wysyła do paneli komunikat (np. 0x30) ❓.
+0x9d05f088 f code_lookup         Szuka kodu w tablicy 32 użytkowników (34 B na wpis); zwraca numer, 100 dla kodu serwisowego, 0xFF gdy brak.
+0xa00162e4 d g_users             Tablica użytkowników: 32 × 34 B (kod jako napis, +0x0D uprawnienia).
+0xa0015d30 d g_service_code4     Czterocyfrowy kod serwisowy (użytkownik 100).
+0x9d004884 f zones_arm           Uzbraja strefy z maski (bity 0–3); źródło 3 = panel z kodem, 5 = szybkie uzbrojenie; tryb ≠ 0 = czuwanie nocne.
+0x9d0046e8 f zone_arm            Uzbrojenie jednej strefy: stan 3 → 5 (odliczanie), bit 11 = noc, drugie słowo = czas na wyjście w ms.
+0xa00159a0 d g_modules           Tablica 18 gniazd modułów po 11 B: adres, flagi (bit 0 = aktywny), …
+0xa0000160 d g_zones_state       Uchwyt stanu 4 stref (po 8 B); kopiowany do nagłówka stanu pod 0x04C.
+
 # --- koncentrator pod adresem 0xB0 ❓ Hub-IQPLC ---
 0x9d04f590 f hub_cmd_f0          Ramka 0xB0/0xF0, 8 B stanu; odpowiedź 0xF0.
 0x9d04f668 f hub_cmd_f1          Ramka 0xB0/0xF1, 8 B stanu; odpowiedź 0xF1, 84 B.

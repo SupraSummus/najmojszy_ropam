@@ -35,7 +35,7 @@ undefined4 cfg_store_all(void)
   }
   cfg_section_put(s_APCFG_9d06b848,&DAT_a00010c8);
   cfg_section_put(&DAT_9d06b858,&DAT_a000218c);
-  cfg_section_put(&DAT_9d06b844,&DAT_a00159a0);
+  cfg_section_put(&DAT_9d06b844,&g_modules);
   if (bVar1) {
     g_cfg_crc = crc16_xmodem(&g_config,g_config + -4);
     uVar3 = 0xccbc;

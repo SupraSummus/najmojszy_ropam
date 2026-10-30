@@ -120,7 +120,7 @@ undefined1 status_header(undefined1 param_1,int param_2)
   *(undefined1 *)(param_2 + 0x42) = DAT_a0016725;
   *(undefined1 *)(param_2 + 0x43) = DAT_a0016754;
   FUN_9d05e3e4(DAT_a00001b0,param_2 + 0x44,0);
-  FUN_9d05e3e4(DAT_a0000160,param_2 + 0x4c,0);
+  FUN_9d05e3e4(g_zones_state,param_2 + 0x4c,0);
   FUN_9d05e3e4(DAT_a00001a4,param_2 + 0x6c,0);
   FUN_9d05e3e4(DAT_a00000c0,param_2 + 0x78,0);
   memcpy(param_2 + 0xb8,&DAT_a000277c,0x10);
