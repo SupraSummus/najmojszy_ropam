@@ -6,7 +6,8 @@ TXD przestaje sterować linią,
 zostaje tylko wewnętrzne podciąganie układu (ok. 200 kΩ),
 które inny nadajnik (np. most na XIAO, esp32/) bez trudu przeważa.
 Zasilony układ nie oddaje też na RX echa z TX centrali,
-jak potrafi niezasilony (docs/protokol-serwisowy.md).
+jak robi to niezasilony (sprawdzone na sprzęcie,
+docs/protokol-serwisowy.md).
 
 Stan zostaje po zakończeniu programu;
 żeby kabel znów działał jako port szeregowy,
@@ -14,7 +15,7 @@ trzeba go odłączyć od USB i podłączyć ponownie.
 
 Użycie:
     ftdi_odlacz.py           # pierwszy FT232 (0403:6001)
-    ftdi_odlacz.py ODCZYT    # tylko pokazuje poziomy nóżek, niczego nie zmienia
+    ftdi_odlacz.py ODCZYT    # tylko pokazuje poziomy nóżek, nic nie zmienia
 Wymaga libftdi1 z modułem Pythona (ftdi1).
 """
 import sys
@@ -42,6 +43,8 @@ def main():
               "tryb bit-bang")
     ret, pins = ftdi1.read_pins(ctx)
     check(ctx, ret, "odczyt nóżek")
+    if isinstance(pins, (bytes, str)):
+        pins = ord(pins[:1])
     print(" ".join(f"{name}={pins >> i & 1}" for i, name in enumerate(PINS)))
     if not only_read:
         print("TXD kabla nie steruje już linią (wszystkie nóżki to wejścia)")

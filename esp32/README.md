@@ -34,17 +34,16 @@ Sprawdzone z centralą (D7 równolegle z kablem USB-MGSM):
 XIAO odbiera to samo co kabel, bajt w bajt,
 zarówno `C` w spoczynku, jak i całą odpowiedź XMODEM na komendę `id`.
 Można więc go używać jako podsłuchu sesji Managera.
-Nadawanie z D6 do centrali: jeszcze nie działa.
-Przy pierwszej próbie (kabel USB-MGSM odłączony od komputera)
-centrala słyszała własne echo
-([`docs/protokol-serwisowy.md`](../docs/protokol-serwisowy.md#objaw-centrala-słyszy-własne-echo)),
-choć D6 nadawał i w spoczynku trzymał stan wysoki
-(sprawdzone programem `ropam-piny`, niżej).
-Program `ropam-d6` trzymał potem D6 przez 2 s w stanie niskim
-i rytm echa nie zmienił się ani trochę:
-D6 nie ma żadnego wpływu na RX centrali.
-Linią steruje więc coś silnego (kabel, zwarcie TX z RX),
-albo D6 do niej nie dochodzi; zob. „Diagnostyka”.
+Nadawanie z D6 do centrali: jeszcze niesprawdzone.
+W pierwszym montażu wyszły po kolei dwie usterki:
+
+1. kabel USB-MGSM został wpięty w gniazdo, ale odłączony od komputera,
+   i centrala słyszała własne echo
+   ([`docs/protokol-serwisowy.md`](../docs/protokol-serwisowy.md#objaw-centrala-słyszy-własne-echo));
+   po podłączeniu kabla do USB echo ustało;
+2. D6 nie był połączony z żyłą RX centrali:
+   `ropam-d6in` pokazał nóżkę wiszącą w powietrzu,
+   choć kabel przełączał w tym czasie tę żyłę tysiące razy.
 
 ### Połączenia
 
@@ -103,6 +102,14 @@ Wynik najprościej obejrzeć w wyjściu narzędzia wgrywającego:
 ```sh
 esp32/rvuos/zbuduj.sh ropam-d6 wgraj
 ```
+
+`rvuos/ropam-d6in.c` robi z D6 wejście i przez 2 × 3 s
+(podciąganie w dół, potem w górę) liczy jego stany niskie i zmiany.
+Nóżka wisząca w powietrzu jest niska w pierwszej fazie, wysoka w drugiej
+i w żadnej się nie zmienia.
+Sygnał na żyle RX centrali najprościej dać z kabla USB-MGSM w trybie bit-bang
+(nóżka TXD jako wyjście, `set_bitmode(0x01, BITMODE_BITBANG)` w libftdi);
+centrala odbiera wtedy śmieci, z których nie złoży poprawnego pakietu.
 
 Gdy centrala słyszy własne echo
 (`ropam_serwis.py` mówi wtedy „centrala nadaje bez przerwy”),
