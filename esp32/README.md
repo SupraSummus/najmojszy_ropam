@@ -40,8 +40,16 @@ bo dwa nadajniki na jednej linii by się kłóciły.
 ### Połączenia
 
 Gniazdo RJ12 centrali ma trzy używane żyły: masę, nadawanie (TX) i odbiór (RX) centrali.
-Procesor centrali pracuje na 3,3 V, ale poziomu na gnieździe nie znamy;
+Procesor centrali pracuje na 3,3 V;
 ESP32-C6 nie toleruje 5 V.
+Kabel USB-MGSM (FT232BL) nadaje do centrali w logice 3,3 V:
+na RX centrali w spoczynku jest ok. 3,4 V.
+Dlatego D6 przez 1 kΩ może zostać wpięty nawet razem z kablem;
+przy kolizji nadajników płynie najwyżej ok. 3,4 mA.
+Poziom TX centrali: do zmierzenia.
+Dzielnik 10 kΩ / 20 kΩ daje z 3,3 V ok. 2,2 V,
+czyli mniej niż próg stanu wysokiego ESP32-C6 (0,75 × 3,3 V ≈ 2,5 V);
+działa, ale na granicy, więc przy 3,3 V lepszy jest sam opornik 1 kΩ.
 
 | Gniazdo RJ12 | XIAO ESP32-C6 |
 |---|---|
