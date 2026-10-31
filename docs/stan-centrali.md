@@ -46,9 +46,27 @@ Zapis konfiguracji (`0x02`) też nie wymaga restartu:
 centrala od razu wczytuje nową konfigurację,
 przelicza wejścia i rozsyła ustawienia panelom TPR ✅.
 Czy wszystkie ustawienia (np. modemu) działają bez restartu, nie wiemy ❓.
-**Wniosek dla bramki:** stałe odpytywanie `0x24` trzymałoby centralę w sesji serwisowej.
-Do okazjonalnego podglądu się nada,
-ale stała integracja powinna iść inną drogą (magistrala RopamNET albo AP-IP).
+
+**Wniosek dla bramki:** stałe odpytywanie `0x24` bez kończenia sesji,
+jak robi to Manager co ok. 0,5 s,
+trzymałoby centralę w sesji serwisowej bez przerwy.
+Z kończeniem sesji po każdym odczycie flaga jest ustawiona
+tylko od obsługi komendy do trzeciego przerwania.
+Gdy odbiorca przerwie cykle zaraz na pierwszym `C` po transmisji stanu,
+trwa to ok. 0,26 s 🔌
+(blok komendy, EOT, transmisja 1100 B, trzy przerwania),
+a następny odczyt widzi w `0x0CE` flagę zgaszoną 🔌.
+Przy odczycie co 5 s to ok. 5% czasu.
+Co w tym czasie centrala robi inaczej (z kodu ✅):
+
+- `hub_poll` nie porównuje wyjść z koncentratorem
+  i robi to w następnym przebiegu,
+- `bus_poll_round` dla modułu w slocie 15 pomija jedną z funkcji przebiegu,
+- `aero_service` przekazuje flagę modułowi w bajcie stanu.
+
+Do podglądu to wystarcza.
+Integracja, która ma działać bez żadnego wpływu na centralę,
+powinna iść inną drogą (magistrala RopamNET albo AP-IP).
 
 ## Komendy `0x1F` i `0x2F`: restart
 

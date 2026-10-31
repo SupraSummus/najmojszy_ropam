@@ -40,6 +40,15 @@ int main(void)
     printf("json: %s\n", body);
     assert(strstr(body, "\"naruszone\":[1,3]") && strstr(body, "\"wyjscia\":[2]"));
 
+    s.last_error = -2; /* kody z ropam.h, ujemne, i tak samo na stronie */
+    n = strona_http(&s, (const uint8_t *)req, (uint32_t)strlen(req), out, sizeof(out));
+    out[n] = 0;
+    assert(strstr((char *)out, "\"ostatni_blad\":-2,"));
+    req = "GET / HTTP/1.1\r\n\r\n";
+    n = strona_http(&s, (const uint8_t *)req, (uint32_t)strlen(req), out, sizeof(out));
+    out[n] = 0;
+    assert(strstr((char *)out, "kod -2)"));
+
     req = "GET /x HTTP/1.1\r\n\r\n";
     n = strona_http(&s, (const uint8_t *)req, (uint32_t)strlen(req), out, sizeof(out));
     assert(memcmp(out, "HTTP/1.0 404", 12) == 0);

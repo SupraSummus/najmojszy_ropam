@@ -163,12 +163,9 @@ int ropam_receive(const struct ropam_io *io, uint8_t *out, uint32_t max, uint32_
     }
 }
 
-int ropam_end_session(const struct ropam_io *io)
+/* Trzy puste cykle odbioru (C → CAN CAN → ACK), od zaproszenia 'C', które właśnie przyszło. */
+static int cancel_cycles(const struct ropam_io *io)
 {
-    int r = fresh_invite(io, 10000);
-    if (r != ROPAM_OK) {
-        return r;
-    }
     for (int i = 0; i < 3; i++) {
         if (i != 0 && wait_for(io, X_CRC_REQ, -1, 3000) < 0) {
             return ROPAM_NO_INVITE;
@@ -180,6 +177,12 @@ int ropam_end_session(const struct ropam_io *io)
         }
     }
     return ROPAM_OK;
+}
+
+int ropam_end_session(const struct ropam_io *io)
+{
+    int r = fresh_invite(io, 10000);
+    return r != ROPAM_OK ? r : cancel_cycles(io);
 }
 
 int ropam_status(const struct ropam_io *io, uint8_t *buf)
@@ -196,10 +199,15 @@ int ropam_status(const struct ropam_io *io, uint8_t *buf)
     if ((uint32_t)r < ROPAM_STATUS_SIZE) {
         return ROPAM_NO_DATA;
     }
-    /* Opcjonalna druga transmisja (odpowiedź modemu): centrala czeka wtedy na nasze 'C' zamiast nadawać swoje. */
-    if (wait_for(io, X_CRC_REQ, -1, 1500) < 0) {
-        uint8_t extra[1024 + 128];
-        (void)ropam_receive(io, extra, sizeof(extra), 10000);
+    /*
+     * Opcjonalna druga transmisja (odpowiedź modemu): centrala czeka wtedy na nasze 'C' zamiast nadawać swoje.
+     * Bez niej pierwsze 'C' po transmisji jest świeżym zaproszeniem, więc sesję kończymy od razu na nim,
+     * a centrala jest w trybie ON-LINE tylko przez czas samej wymiany.
+     */
+    if (wait_for(io, X_CRC_REQ, -1, 1500) == X_CRC_REQ) {
+        return cancel_cycles(io);
     }
+    uint8_t extra[1024 + 128];
+    (void)ropam_receive(io, extra, sizeof(extra), 10000);
     return ropam_end_session(io);
 }

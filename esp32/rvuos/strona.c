@@ -140,7 +140,7 @@ static void html(struct sbuf *o, const struct strona_stan *s)
     sput(o, ", błędy: ");
     snum(o, s->errors);
     if (s->last_error != 0) {
-        sput(o, " (ostatni odczyt nieudany, kod ");
+        sput(o, " (ostatni odczyt nieudany, kod -");
         snum(o, (uint32_t)-s->last_error);
         sput(o, ")");
     }
@@ -153,7 +153,7 @@ static void json(struct sbuf *o, const struct strona_stan *s)
     snum(o, s->reads);
     sput(o, ",\"bledy\":");
     snum(o, s->errors);
-    sput(o, ",\"ostatni_blad\":");
+    sput(o, s->last_error != 0 ? ",\"ostatni_blad\":-" : ",\"ostatni_blad\":");
     snum(o, (uint32_t)-s->last_error);
     if (s->status != 0) {
         const uint8_t *st = s->status;

@@ -29,6 +29,30 @@ skrypt dopisuje `run=0`, żeby system działał bez końca.
 `antenna=ufl` przełącza XIAO na złącze anteny zewnętrznej.
 Adres IP widać w logu startu, który skrypt pokazuje przez minutę.
 
+Jak to jest ułożone:
+
+- Proces główny ustawia TX UART0 na D8 zaraz po starcie,
+  zanim system zacznie łączyć się z siecią.
+  Póki D8 nie nadaje, wejście RX centrali wisi w powietrzu,
+  a centrala bierze to za śmieci i potem odrzuca nasze bloki
+  (odpowiada `C` i `CAN` zamiast `ACK`).
+  Z pinami ustawianymi dopiero w procesie `ropam`,
+  ok. 10 s po starcie, odczyty się nie udawały 🔌.
+- Proces `ropam` dostaje UART0, licznik czasu (`BOOT_CAP_COUNTER`)
+  i obszar migawki, czyli razem z kodem, danymi i gniazdem
+  wszystkie osiem regionów, jakie może mieć proces.
+  Na bajty czeka budzikiem po 2 ms,
+  a czas liczy z licznika, nie z liczby drzemek.
+- Sesję serwisową kończy zaraz po odebraniu stanu,
+  na pierwszym zaproszeniu `C` po transmisji.
+  Centrala jest w trybie ON-LINE ok. 0,26 s na każdy odczyt 🔌,
+  czyli ok. 5% czasu przy odczycie co 5 s (`ROPAM_EVERY_MS` w `bramka.h`).
+  W tym czasie pomija m.in. synchronizację wyjść z koncentratorem
+  i nadrabia ją w następnym przebiegu odpytywania
+  (szczegóły w [`docs/stan-centrali.md`](../docs/stan-centrali.md)).
+- Obszar na dane procesów potomnych (`ROOM_SIZE`) jest powiększony do 64 KiB:
+  proces sieciowy z TCP ma 32 KiB, `ropam` 16 KiB, echo i zegar po 8 KiB.
+
 Testy na komputerze: `esp32/rvuos/test/tcp-test.c`, `strona-test.c`
 (polecenia kompilacji na ich początku).
 
@@ -167,4 +191,4 @@ po kolei:
 
 - Podsłuch magistrali RS-485 (wymaga transceivera, np. MAX3485, tylko na odbiór);
   narzędzie do analizy zapisu: `tools/ropamnet.py analizuj`.
-- Most przez sieć: rvuos ma stos z UDP (bez TCP).
+- Most przez sieć do narzędzi z komputera (TCP już jest, `tcp.c`).

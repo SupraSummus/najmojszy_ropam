@@ -1,7 +1,16 @@
 diff --git a/user/radio/esp32c6/root.c b/user/radio/esp32c6/root.c
-index 7980627..eae5f86 100644
+index 7980627..fb74ed2 100644
 --- a/user/radio/esp32c6/root.c
 +++ b/user/radio/esp32c6/root.c
+@@ -55,7 +55,7 @@
+ #define DRV_OWN_POOL    0x2000u
+ #define DRV_OWN_LINES   8u
+ #define DRV_OWN_UNITS   (DRV_UNITS_WATCHER + DRV_UNITS_ISR + DRV_UNITS_TIMERS + DRV_UNITS_STATION)
+-#define ROOM_SIZE       0x8000u /* the network process's data and its clients', the driver's being a block of its own */
++#define ROOM_SIZE       0x10000u /* najmojszy_ropam: the network process's 0x8000 and its clients', the ropam's 0x4000 */
+ 
+ /*
+  * Who gets which of the first core's units: the root task the first, mostly waiting,
 @@ -98,7 +98,7 @@ static struct system sys = {
      .self = &self,
      .out = &kout,
@@ -11,6 +20,24 @@ index 7980627..eae5f86 100644
  };
  static struct block drv_ram;
  static struct block dump_bank; /* the dump engine's, for a program that needs it; see drv.h and dump.h */
+@@ -887,6 +887,17 @@ int main(void)
+     say(&kout, "root: wifi system, MAC address %M\n", mac);
+     say(&kout, "root: the program is %s\n", program_name);
+ 
++#ifdef BOOT_CAP_UART0
++    /* najmojszy_ropam: the alarm panel's line driven from the start, not left floating until the network is up. */
++    {
++        uint32_t mux, gpio;
++        must("install the IO MUX", region_install(&self, BOOT_CAP_IO_MUX, RIGHT_R | RIGHT_W, &mux));
++        must("install the GPIO matrix", region_install(&self, BOOT_CAP_GPIO, RIGHT_R | RIGHT_W, &gpio));
++        ropam_pins();
++        must("uninstall the GPIO matrix", region_free(&self, gpio));
++        must("uninstall the IO MUX", region_free(&self, mux));
++    }
++#endif
+     /* The driver's data a block of its own, built before the room is, which is the other children's. */
+     driver_build();
+     rf_switch();
 diff --git a/user/wifi/netproc.c b/user/wifi/netproc.c
 index 10866c1..a83c6bf 100644
 --- a/user/wifi/netproc.c
@@ -98,7 +125,7 @@ index 10866c1..a83c6bf 100644
          if (bits & CHILD_BIT_PARENT) {
              clients_changed(p);
 diff --git a/user/wifi/system.c b/user/wifi/system.c
-index 4a0e171..f86504f 100644
+index 4a0e171..d0cd17e 100644
 --- a/user/wifi/system.c
 +++ b/user/wifi/system.c
 @@ -4,6 +4,8 @@
@@ -150,17 +177,22 @@ index 4a0e171..f86504f 100644
      system_must(s, "connect a client", bulk_connect(s->self, &s->socks, i, c, &((struct client_page *)c->page)->net));
      if (i == CLIENT_LOGGER) {
          system_must(s, "give the logger the log", child_map(s->self, c, BOOT_CAP_LOG, RIGHT_R | RIGHT_W, &region));
-@@ -107,6 +117,15 @@ static void client_build(struct system *s, uint32_t i)
+@@ -107,6 +117,20 @@ static void client_build(struct system *s, uint32_t i)
          system_must(s, "give the clock the addresses", child_map(s->self, c, s->config, RIGHT_R, &region));
          ((struct clock_page *)c->page)->config = net_config((const struct net_page *)s->network.page);
      }
 +#ifdef BOOT_CAP_UART0
 +    if (i == CLIENT_ROPAM) {
 +        system_must(s, "give the ropam UART0", child_map(s->self, c, BOOT_CAP_UART0, RIGHT_R | RIGHT_W, &region));
-+        system_must(s, "give the ropam the IO MUX", child_map(s->self, c, BOOT_CAP_IO_MUX, RIGHT_R | RIGHT_W, &region));
-+        system_must(s, "give the ropam the GPIO", child_map(s->self, c, BOOT_CAP_GPIO, RIGHT_R | RIGHT_W, &region));
++        system_must(s, "give the ropam the counter", child_map(s->self, c, BOOT_CAP_COUNTER, RIGHT_R, &region));
 +        system_must(s, "give the ropam its snapshot", child_map(s->self, c, s->ropam_area, RIGHT_R | RIGHT_W, &region));
-+        ((struct ropam_page *)c->page)->shared = ropam_shared((const struct net_page *)s->network.page);
++        struct ropam_page *rp = (struct ropam_page *)c->page;
++        uint32_t size;
++        uint64_t now;
++        rp->shared = ropam_shared((const struct net_page *)s->network.page);
++        system_must(s, "the counter's place", rv_frame_info(BOOT_CAP_COUNTER, &rp->counter, &size));
++        rp->counter += COUNTER_OFFSET;
++        system_must(s, "the counter's rate", rv_clock_read(BOOT_CAP_CLOCK, &now, &rp->counter_hz));
 +    }
 +#endif
      system_must(s, "start a client", child_start(s->self, c, kinds[i].entry, 0, CLIENT_UNITS));
@@ -188,7 +220,7 @@ index bab188e..77ef45c 100644
      int clients_built;
  };
 diff --git a/user/wifi/wifi.h b/user/wifi/wifi.h
-index 2581c07..dc68008 100644
+index 2581c07..99b9c9a 100644
 --- a/user/wifi/wifi.h
 +++ b/user/wifi/wifi.h
 @@ -33,6 +33,7 @@
@@ -218,7 +250,7 @@ index 2581c07..dc68008 100644
  /* The seqlock of the network's addresses in the network process's page. */
  static inline struct seqlock net_config(const struct net_page *p)
  {
-@@ -223,11 +234,21 @@ struct logger_page {
+@@ -223,11 +234,24 @@ struct logger_page {
      volatile uint32_t carried; /* from the logger: the bytes hosts have said they have */
  };
  
@@ -229,7 +261,10 @@ index 2581c07..dc68008 100644
 +struct ropam_page {
 +    struct client_page c;
 +    struct seqlock shared; /* the snapshot in the network process's page, which it writes */
++    uint32_t counter, counter_hz; /* where it reads the counter, BOOT_CAP_COUNTER, and the counter's rate */
 +};
++/* The panel's pins, UART0's TX on D8 too; the root calls it with the IO MUX and the GPIO installed. */
++void ropam_pins(void);
 +
  void driver_main(struct child_page *page);
  void net_main(struct child_page *page);
