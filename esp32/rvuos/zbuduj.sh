@@ -26,6 +26,12 @@ for patch in "$here"/*.patch; do
     echo "nałożono $(basename "$patch")"
 done
 ln -sfn "$here/$program.c" "$rvuos/user/$program.c"
+# Biblioteki (ropam.c, tcp.c, …) programy dołączają jako "ropam/plik.c":
+# budowanie rvuos kompiluje jeden plik na program.
+mkdir -p "$rvuos/user/ropam"
+for f in "$here"/*.c "$here"/*.h; do
+    ln -sfn "$f" "$rvuos/user/ropam/$(basename "$f")"
+done
 
 image=build/esp32c6/kernel-$program.bin
 make -C "$rvuos" BOARD=esp32c6 USER_PROGRAMS="$program" "$image"
