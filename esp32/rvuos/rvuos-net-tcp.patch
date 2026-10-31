@@ -1,0 +1,61 @@
+diff --git a/user/wifi/net.c b/user/wifi/net.c
+index 5e95821..92e6d9d 100644
+--- a/user/wifi/net.c
++++ b/user/wifi/net.c
+@@ -186,6 +186,20 @@ static void ip_send(struct net *n, uint8_t *f, const uint8_t *mac, uint32_t to,
+     eth_send(n, f, mac, ETH_IP, IP_HEADER + len);
+ }
+ 
++int net_ip_send(struct net *n, uint32_t to, uint32_t proto, const uint8_t *payload, uint32_t len)
++{
++    const uint8_t *mac;
++    if (len > NET_FRAME_MAX - ETH_HEADER - IP_HEADER || next_hop(n, to, &mac) != 0) {
++        return -1;
++    }
++    uint8_t *f = n->buffer(n);
++    if (f != 0) {
++        memcpy(f + ETH_HEADER + IP_HEADER, payload, len);
++        ip_send(n, f, mac, to, proto, len);
++    }
++    return 0;
++}
++
+ static uint16_t udp_checksum(uint32_t from, uint32_t to, const uint8_t *udp, uint32_t len)
+ {
+     uint8_t pseudo[12];
+@@ -454,6 +468,8 @@ static void ip_input(struct net *n, const uint8_t *eth, const uint8_t *p, uint32
+         icmp_input(n, from, p + ihl, total - ihl);
+     } else if (p[9] == IP_UDP) {
+         udp_input(n, from, to, p + ihl, total - ihl);
++    } else if (p[9] == 6 && to == n->ip && n->tcp_input != 0) {
++        n->tcp_input(n, n->tcp_arg, from, p + ihl, total - ihl);
+     }
+ }
+ 
+diff --git a/user/wifi/net.h b/user/wifi/net.h
+index 00b5c74..e835038 100644
+--- a/user/wifi/net.h
++++ b/user/wifi/net.h
+@@ -64,6 +64,9 @@ struct net {
+     struct net_arp arp[NET_ARP_ENTRIES];
+     struct net_udp udp[NET_UDP_PORTS];
+     uint32_t rx_frames, tx_frames, rx_dropped, pings;
++    /* TCP's segments addressed to this host, if something takes them: who sent it, and the segment. */
++    void (*tcp_input)(struct net *n, void *arg, uint32_t from, const uint8_t *segment, uint32_t len);
++    void *tcp_arg;
+ };
+ 
+ void net_init(struct net *n, const uint8_t mac[6], net_buffer_fn buffer, net_send_fn send, void *owner);
+@@ -85,6 +88,12 @@ int net_udp_bound(const struct net *n, uint16_t port);
+  */
+ int net_udp_send(struct net *n, uint32_t to_ip, uint16_t to_port, uint16_t from_port, const uint8_t *data, uint32_t len);
+ 
++/*
++ * Sends an IP packet of protocol proto whose payload of len bytes the caller has, as net_udp_send sends:
++ * 0 if it went or there was no buffer, -1 if the next hop is not known yet and an ARP request went instead.
++ */
++int net_ip_send(struct net *n, uint32_t to_ip, uint32_t proto, const uint8_t *payload, uint32_t len);
++
+ /* An address in network order from its four numbers. */
+ uint32_t net_ip(uint32_t a, uint32_t b, uint32_t c, uint32_t d);
+ 
