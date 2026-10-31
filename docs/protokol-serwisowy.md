@@ -169,10 +169,31 @@ którą najpierw zgłosimy producentowi.
 
 ## Polecenia SMS przez kabel: komenda `0x19`
 
-Treść komendy to tekst polecenia SMS (z końcowym zerem) ✅.
-Centrala przetwarza go tak jak SMS (`FUN_9d016544`),
-zbiera odpowiedzi, które wysłałaby SMS-em,
+Treść komendy to tekst polecenia SMS (z końcowym zerem) ✅ 🔌.
+Centrala przetwarza go tak jak SMS (`sms_execute`),
+a odpowiedzi, które wysłałaby SMS-em, trafiają do kolejki SMS-ów.
+Na czas komendy centrala ustawia znacznik (`0xA0000135`),
+przy którym zadanie modemu tej kolejki nie rusza ✅;
+komenda zabiera z niej do trzech wiadomości
 i odsyła je jedną transmisją XMODEM jako tekst.
+Do sieci GSM nic więc nie wychodzi.
+(Gdyby w kolejce czekał akurat prawdziwy SMS, np. o alarmie,
+komenda też by go zabrała.)
+Przy złym kodzie odpowiedzi nie ma.
+
+Przykład odpowiedzi na `stan` (wartości zmyślone, układ prawdziwy) 🔌:
+
+```
+26/01/15 12:00
+sv:3.4
+GSM:2,20dbm
+Uz:13.8V
+Wejscia:00000000
+Wyjscia:xxxxxxx0
+Temp.
+T1.nazwa:21.5
+S1.nazwa:rozbrojony
+```
 
 Format: `KKKK polecenie`, czyli czterocyfrowy kod użytkownika, spacja i polecenie ✅
 (w wariancie z aplikacji polecenie zaczyna się dopiero od 12. znaku).
@@ -194,8 +215,13 @@ Część tylko odczytuje (np. `stan`, `wejscia`, `gprsstat`, `lanstat`, `netstat
 ale już `stan` zapisuje w dzienniku zdarzenie `0x16` („Zapytanie o status systemu”).
 Inne sterują systemem (`zal`/`wyl` uzbrajają i rozbrajają, `blokuj`, `outs`, `rygiel`)
 albo zmieniają ustawienia (`kod`, `dodajtel`, `czas`).
-Dla bramki to najprostsza droga do uzbrajania przez port serwisowy ❓,
-ale wymaga kodu użytkownika i nie zostało jeszcze sprawdzone na sprzęcie.
+Dla bramki to najprostsza droga do uzbrajania przez port serwisowy ❓;
+wymaga 4-cyfrowego kodu użytkownika z uprawnieniem do sterowania SMS
+(kod dłuższy niż 4 cyfry tu nie zadziała).
+Sprawdzone na sprzęcie: `stan`.
+
+Klient: `tools/ropam_serwis.py PORT sms KOD POLECENIE`;
+bez `ROPAM_STERUJ=1` przepuszcza tylko polecenia odczytujące.
 
 ## Jak pracuje OptimaGSM Manager
 

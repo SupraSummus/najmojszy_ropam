@@ -40,11 +40,12 @@ także transfer 1100 B w blokach po 1024 B.
 Działa też z kablem wpiętym w gniazdo, ale odłączonym od komputera:
 spoczynek nadajnika XIAO za 1 kΩ przeważa echo niezasilonego FT232BL.
 
-Znany błąd ❓: raz most przestał nadawać do centrali
-(odbiór działał dalej, centrala nie rozpoznawała naszych pakietów)
-po ok. 10 minutach bezczynności z zamkniętym portem;
-pomogło dopiero ponowne wgranie (restart XIAO).
-Przyczyny jeszcze nie znamy.
+Pierwsza wersja budziła się okresowym budzikiem rvuos co 500 µs
+i po 10–20 minutach od startu zaczynała gubić bajty w obu kierunkach
+(nasze ACK docierały do centrali za późno, jej bloki przychodziły rwane);
+pomagał tylko restart XIAO.
+Teraz pętla odpytuje oba FIFO bez przerwy, bez budzika;
+przyczyna w rvuos (budzik po dłuższym czasie od startu ❓) do zbadania.
 
 Po drodze wyszły dwie usterki montażu, warte zapamiętania:
 

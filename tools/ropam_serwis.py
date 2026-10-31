@@ -19,6 +19,9 @@ Użycie:
     ropam_serwis.py PORT konfiguracja HASŁO PLIK   # komenda 0x03
     ropam_serwis.py PORT dziennik [PLIK]     # komenda 0x04: ostatnie 1000 zdarzeń
     ropam_serwis.py PORT raport              # komenda 0x4C: raport diagnostyczny
+    ropam_serwis.py PORT sms KOD POLECENIE   # komenda 0x19: polecenie SMS kablem
+        KOD: 4 cyfry albo plik:ŚCIEŻKA; bez ROPAM_STERUJ=1 tylko polecenia
+        odczytujące (SMS_READ_ONLY), bo inne uzbrajają, sterują wyjściami itd.
     ropam_serwis.py PORT koniec              # od razu kończy sesję serwisową
         HASŁO: 6 znaków, hex:xxxxxxxxxxxx albo plik:ŚCIEŻKA (hex w pliku)
     ROPAM_DEBUG=1 wypisuje każdy bajt na stderr.
@@ -212,6 +215,25 @@ def end_session(port, timeout=10):
             raise IOError("centrala nie potwierdziła przerwania")
 
 
+# Polecenia SMS, które tylko odczytują (choć „stan” zapisuje zdarzenie 0x16).
+SMS_READ_ONLY = {"stan", "wejscia", "lines", "gprsstat", "netstat", "lanstat",
+                 "hardware"}
+
+
+def sms_command(port, code, command):
+    """Komenda 0x19: polecenie SMS „KKKK polecenie” wykonane przez kabel.
+
+    Centrala odsyła tekst, który wysłałaby SMS-em (do trzech wiadomości);
+    zadanie modemu nie rusza wtedy kolejki SMS-ów, więc nic nie wychodzi
+    do sieci. Bez ważnego kodu centrala nic nie odsyła.
+    """
+    if len(code) != 4:
+        raise ValueError("kod poleceń SMS ma dokładnie 4 znaki")
+    send(port, bytes([0x19]) + f"{code} {command}".encode("ascii") + b"\0")
+    reply = strip_padding(receive(port, timeout=30)).split(b"\0")[0]
+    return reply.decode("cp1250", "replace")
+
+
 STATUS_SIZE = 1100
 LOG_RECORD = 16
 
@@ -314,6 +336,17 @@ def main():
         send(port, bytes([0x4C]))
         text = strip_padding(receive(port)).rstrip(b"\0")
         print(text.decode("cp1250", "replace"))
+    elif cmd == "sms" and len(sys.argv) >= 5:
+        code = sys.argv[3]
+        if code.startswith("plik:"):
+            with open(code[5:]) as f:
+                code = f.read().strip()
+        command = " ".join(sys.argv[4:])
+        if (command.split()[0] not in SMS_READ_ONLY
+                and os.environ.get("ROPAM_STERUJ") != "1"):
+            sys.exit(f"„{command.split()[0]}” nie jest na liście poleceń "
+                     "odczytujących; ROPAM_STERUJ=1, jeśli na pewno")
+        print(sms_command(port, code, command))
     elif cmd == "koniec":
         end_session(port)
         print("sesja serwisowa zakończona")

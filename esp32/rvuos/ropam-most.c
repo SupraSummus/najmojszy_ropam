@@ -12,9 +12,11 @@
  * więc RX centrali można podłączyć do D6 albo do D8.
  * Wymaga rvuos z przydziałem UART0 (BOOT_CAP_UART0), zob. esp32/rvuos/README.md.
  *
- * Program nie korzysta z przerwań: co STEP_US przepycha to, co czeka w obu FIFO.
- * Przy 115200 b/s w ciągu 500 µs przychodzi ok. 6 bajtów,
- * a FIFO odbiorcze UART0 mieści 128.
+ * Program nie korzysta z przerwań ani z budzika: w pętli bez przerwy przepycha to,
+ * co czeka w obu FIFO.
+ * Wcześniejsza wersja budziła się co 500 µs okresowym budzikiem rvuos
+ * i po kilku–kilkunastu minutach od startu zwalniała tak,
+ * że gubiła bajty w obu kierunkach (przyczyna w rvuos do zbadania).
  */
 
 #include <stdint.h>
@@ -24,12 +26,6 @@
 #include "pins.h"
 #include "rvuos.h"
 
-enum {
-    SLOT_NTFN = BOOT_CAP_COUNT, /* powiadomienie od timera */
-    SLOT_LINE,                  /* linia timera */
-    SLOT_TIMER,                 /* Irq na tej linii */
-};
-
 /* Regiony procesu za kodem i danymi. */
 #define REGION_CONSOLE 2
 #define REGION_UART0   3
@@ -38,9 +34,6 @@ enum {
 
 #define PIN_TX_EXTRA 19u /* D8 */
 #define SIG_U0TXD    6u  /* sygnał wyjściowy U0TXD w matrycy GPIO */
-
-#define BIT_TIMER 1u
-#define STEP_US   500u
 
 /* Rejestry UART0 (ESP-IDF, soc/esp32c6/register/soc/uart_reg.h). */
 #define UART_FIFO        0x00u /* odczyt: bajt z RX FIFO, zapis: bajt do TX FIFO */
@@ -99,10 +92,6 @@ int main(void)
     MMIO(GPIO_ENABLE_W1TS) = 1u << PIN_TX_EXTRA;
     MMIO(IO_MUX_PIN(PIN_TX_EXTRA)) = IO_MUX_MATRIX(2);
 
-    expect("allocate the timer's notification", rv_pool_alloc(BOOT_CAP_POOL, CAP_NOTIFICATION, SLOT_NTFN, 0));
-    expect("carve a timer line", rv_irq_carve(BOOT_CAP_TIMER_LINES, 0, 1, SLOT_LINE));
-    expect("bind the timer line", rv_irq_bind(SLOT_LINE, BOOT_CAP_POOL, SLOT_NTFN, SLOT_TIMER));
-
     /* Stare bajty z czasu startu (np. echo tekstu ROM) nie należą do żadnej sesji. */
     while (UART_RXFIFO_CNT(REG(UART_STATUS)) != 0) {
         (void)REG(UART_FIFO);
@@ -113,8 +102,5 @@ int main(void)
             console_flush();
         }
         host_to_uart();
-        uint32_t skipped, bits;
-        expect("keep the step", rv_timer_period(SLOT_TIMER, BIT_TIMER, STEP_US, &skipped));
-        expect("wait for it", rv_wait(SLOT_NTFN, &bits));
     }
 }
