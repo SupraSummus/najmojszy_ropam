@@ -1,11 +1,11 @@
-// expin_service @ 9d030d60
+// aero_service @ 9d030d60
 // Wygenerowane przez tools/ghidra/analyze.sh; nie edytować ręcznie.
 
 /* WARNING: Globals starting with '_' overlap smaller symbols at the same address */
-/* Gniazdo 6, ekspander wejść: 0xDD (8 B stanu systemu) → 16 B stanów wejść i status; co 11.
-   obieg 0xDF, co 60. 0xDC. */
+/* Gniazdo 6, kontroler AP-AERO: 0xDD (8 B stanu systemu) → 16 B stanów urządzeń radiowych,
+   status, piloty; co 11. obieg 0xDF, co 60. 0xDC. */
 
-undefined4 expin_service(void)
+undefined4 aero_service(void)
 
 {
   bool bVar1;
@@ -156,7 +156,7 @@ undefined4 expin_service(void)
   local_80 = DAT_a000028c._1_1_;
   _DAT_a000028c = uVar13;
   for (local_f8 = 0; local_f8 < 0x10; local_f8 = local_f8 + 1) {
-    local_e8 = FUN_9d008a78(local_f8 + 0x10);
+    local_e8 = output_is_on(local_f8 + 0x10);
     if ((*(uint *)(&DAT_a0006914 + (local_f8 + 0x10) * 0xe0) & 0x3ff) >> 8 == 1) {
       local_e8 = (ushort)(local_e8 == 0);
     }
@@ -169,7 +169,7 @@ undefined4 expin_service(void)
     if (';' < DAT_a0000000) {
       DAT_a0000000 = 0;
       DAT_a0000084 = DAT_a0000084 + '\x01';
-      uVar13 = expin_read_dc();
+      uVar13 = aero_read_dc();
       return uVar13;
     }
     DAT_a0000000 = DAT_a0000000 + '\x01';
@@ -290,7 +290,7 @@ undefined4 expin_service(void)
   }
   else {
     DAT_a0000084 = '\0';
-    iVar12 = expin_read_df(&DAT_a0001284,&local_84);
+    iVar12 = aero_read_df(&DAT_a0001284,&local_84);
     uVar10 = _DAT_a0000290;
     if (iVar12 == 0) {
       return 0;
@@ -344,7 +344,7 @@ undefined4 expin_service(void)
     DAT_a0000085 = DAT_a0000085 + '\x01';
     if (DAT_a0000085 == '\x01') {
       os_delay(100);
-      expin_service();
+      aero_service();
     }
   }
   if ((DAT_a0000086 != 1) && ((_DAT_a0000288 & 0xff) >> 7 != 0)) {

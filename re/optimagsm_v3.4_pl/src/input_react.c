@@ -140,7 +140,7 @@ code_r0x9d005868:
       break;
     case '\x04':
       if (bVar6) {
-        cVar7 = FUN_9d004c2c(param_2);
+        cVar7 = zone_outputs_off(param_2);
         if (cVar2 == '\x01') {
           param_4[param_2 * 2] = param_4[param_2 * 2] & 0xfffffeff;
           param_4[param_2 * 2] = param_4[param_2 * 2] & 0xfffffdff;
@@ -287,7 +287,7 @@ code_r0x9d005868:
       }
       break;
     case '\b':
-      if (((bVar6) && (cVar2 == '\x01')) && (iVar8 = FUN_9d004c2c(param_2), iVar8 != 0)) {
+      if (((bVar6) && (cVar2 == '\x01')) && (iVar8 = zone_outputs_off(param_2), iVar8 != 0)) {
         event_log(10,cVar1);
         goto LAB_9d006e80;
       }

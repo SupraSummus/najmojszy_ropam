@@ -114,12 +114,88 @@ Pozostałe są w `switch` w `FUN_9d03c3f0`.
 | `0x02` | zapis konfiguracji: blob 52 412 B (v3.4) z CRC-16/XMODEM, zapis do pliku `0:config.rpm` i kopii `0:cfgcpy.rpm`; odpowiedź: status | ✅ |
 | `0x03` | odczyt konfiguracji: argument to 6-bajtowe „hasło komunikacji” (sekcja `COMM`); odpowiedź to dwie transmisje: status (1 = OK, 2 = złe hasło), a przy sukcesie konfiguracja (52 412 B, bloki 1024 B) | 🔌 |
 | `0x24` | stan centrali na żywo, 1100 B, opis w [`stan-centrali.md`](stan-centrali.md); Manager wysyła ją co ok. 0,5 s, póki jest połączony | 🔌 |
-| `0x26`, `0x2F` | status, a potem **restart centrali** (`SoftReset`); Manager wysyła `0x2F` przy rozłączeniu | ✅ 🔌 |
-| `0x07` | odczyt bloku 198 B (`0xC6`) | ✅ |
-| `0x08` | odczyt tablicy modułów magistrali, 198 B | ❓ |
+| `0x2F` | status, a potem **restart centrali** (`sys_restart`, `SoftReset`); Manager wysyła `0x2F` przy rozłączeniu | ✅ 🔌 |
+| `0x04` | odczyt dziennika zdarzeń: liczba rekordów, potem paczki po 100 rekordów po 16 B; argument 1 = cały, inny = ostatnie 1000; opis w [`zdarzenia.md`](zdarzenia.md) | ✅ 🔌 |
+| `0x05` | **kasuje dziennik zdarzeń** i uruchamia test: wyłącza wyjścia 1–8, potem co 5 s włącza je po kolei i zostawia włączone; nie wysyłać | ✅ |
+| `0x07` | **wyszukanie modułów**: zadanie magistrali nr 4 zeruje adresy we wszystkich gniazdach i odpytuje magistralę od nowa; odpowiedź to nowa tablica gniazd (198 B); zmienia stan, nie wysyłać bez potrzeby | ✅ |
+| `0x08` | zadanie magistrali nr 14 (ponowne sprawdzenie gniazd modułów ❓), potem tablica gniazd (198 B); zmienia stan | ✅ |
+| `0x0D` | ustawienie zegara: 8 B daty i czasu (`rtc_set`) | ✅ |
+| `0x0F` | wysłanie SMS-a z podaną treścią (gdy modem gotowy), status po wysłaniu | ✅ |
+| `0x10`, `0x11` | stała komenda AT do modemu; włącza (`0x10`) albo wyłącza (`0x11`) dołączanie odpowiedzi modemu do `0x24` | ✅ |
 | `0x12` | wpisanie PIN-u karty SIM do modemu (`AT+CPIN`), opcja „WPISZ KOD PIN” z instrukcji | ✅ |
-| `0x4C` | raport diagnostyczny tekstem (m.in. statystyki ramek RopamNET) | ✅ |
-| `0x04`, `0x05`, `0x0D`, `0x0F`–`0x23`, `0x27`–`0x2E`, `0x30`, `0x31`, `0x4A`, `0x4B` | do rozpracowania | |
+| `0x13` | przekazanie tekstu do modułu modemu ❓ | |
+| `0x15`, `0x18` | zadania magistrali nr 2 (12 B) i 3 (26 B) z danymi ❓ | |
+| `0x19` | polecenie SMS podane kablem; odpowiedź tekstem jak na SMS | ✅ |
+| `0x1E` | ❓, potem polecenie dla paneli TPR (zadanie magistrali nr 11) | |
+| `0x1F` | **restart centrali** bez statusu, ze znacznikiem `1` pod `0xA001FFF0` (wejście do bootloadera, czyli aktualizacja firmware'u ❓); nie wysyłać | ✅ |
+| `0x21` | `FUN_9d061674` ❓ | |
+| `0x26`–`0x29` | polecenie dla kanału 1–4 modułu FGR-4 na złączu EXP (zadanie magistrali nr 5: ramka do adresu `0xEE` z bitem kanału i czasem, potem odczyt) | ✅ |
+| `0x2A` | zadanie magistrali nr 6 z 32 B danych, status; przy `0xF7` także 6 B ❓ | |
+| `0x2B` | zadanie magistrali nr 11 z 32 B danych (polecenie dla paneli TPR ❓) | |
+| `0x2C`, `0x2D` | wymuszenie włączenia (`0x2C`) albo wyłączenia (`0x2D`) wyjścia o numerze z bajtu 1 (od 0) | ✅ |
+| `0x2E` | komenda do modemu ❓ | |
+| `0x30` | zapis wybranych bajtów konfiguracji: trójki (przesunięcie u16, wartość), nowe CRC, dalej jak `0x02` | ✅ |
+| `0x31` | włącza albo wyłącza tryb serwisowy (bit 0 `g_sys_flags`, zdarzenie `0x1C`); przy włączeniu wyłącza aktywne wyjścia stref (sygnalizatory ❓); otwiera komendy `0x32`–`0x45` | ✅ |
+| `0x32`–`0x45` | tablica `svc_ext_handlers`, tylko w trybie serwisowym albo przy fladze w ustawieniach | ✅ |
+| `0x4A` | zadanie magistrali `0x4A` z 1 B, status, potem 1500 B ❓ | |
+| `0x4B` | odbiór danych i zadanie magistrali `0x4B` (zapis do modułu ❓) | |
+| `0x4C` | raport diagnostyczny tekstem: czas zbierania statystyk, ramki RopamNET (dobre, bez potwierdzenia, zły CRC, odsetek straconych), błędy komunikacji każdego modułu, błędy czujników temperatury | ✅ 🔌 |
+
+Kody nieobecne w dyspozytorze (np. `0x06`, `0x09`–`0x0C`, `0x0E`, `0x14`, `0x16`, `0x17`, `0x1A`–`0x1D`, `0x20`, `0x22`, `0x23`, `0x25`)
+nie robią nic poza ustawieniem flagi sesji ✅.
+Wbrew wcześniejszemu opisowi `0x26` nie restartuje centrali;
+restart robią `0x1F` i `0x2F` (`sys_restart`) ✅.
+
+## Komendy dodatkowe `0x32`–`0x45`
+
+Obsługuje je `svc_dispatch_ext` z tablicy `svc_ext_handlers` (20 wpisów) ✅.
+Działają tylko wtedy, gdy włączony jest tryb serwisowy (`0x31 1`)
+albo gdy w ustawieniach jest ustawiona flaga pod `0xA0015A46` ❓.
+Wygląda to na protokół aplikacji Ropamu ❓:
+operacje idą w ponumerowanych sesjach,
+a sesję otwiera logowanie kodem użytkownika z uprawnieniem do sterowania zdalnego.
+
+| Kod | Działanie |
+|---|---|
+| `0x33`, `0x34` | logowanie typu wyzwanie–odpowiedź kodem użytkownika; odpowiedź: uprawnienia do stref 1–4 i nazwa użytkownika; po kilku błędach blokada i SMS ✅ |
+| `0x35` | sterowanie wyjściami w sesji ❓ |
+| `0x36` | **uzbrojenie stref** w sesji: maska stref, tryb nocny; centrala zawęża ją do uprawnień kodu ✅ |
+| `0x37` | rozbrojenie stref w sesji ❓ |
+| `0x32`, `0x38`–`0x45` | do rozpracowania |
+
+Szczegóły kryptograficzne logowania na razie pomijamy:
+dotyczą słabości opisanej w [`uwagi-bezpieczenstwa.md`](uwagi-bezpieczenstwa.md),
+którą najpierw zgłosimy producentowi.
+
+## Polecenia SMS przez kabel: komenda `0x19`
+
+Treść komendy to tekst polecenia SMS (z końcowym zerem) ✅.
+Centrala przetwarza go tak jak SMS (`FUN_9d016544`),
+zbiera odpowiedzi, które wysłałaby SMS-em,
+i odsyła je jedną transmisją XMODEM jako tekst.
+
+Format: `KKKK polecenie`, czyli czterocyfrowy kod użytkownika, spacja i polecenie ✅
+(w wariancie z aplikacji polecenie zaczyna się dopiero od 12. znaku).
+Bez ważnego kodu polecenie się nie wykona.
+Kod serwisowy (użytkownik 100) nie ma uprawnień do większości poleceń,
+a gdy użyty kod to wciąż fabryczne `5555`,
+centrala dopisuje do odpowiedzi „Uzywasz hasla fabrycznego, zmien…” ✅.
+
+Polecenia z tablicy w firmware'ze (52, `0x9D05759C`) ✅:
+`zal`, `wyl`, `resettest`, `tel`, `dodajtel`, `usuntel`, `stan`, `restart`, `czas`,
+`korekta`, `blokuj`, `odblokuj`, `kod`, `doladuj`, `ontp`, `offtp`, `tempmonit`,
+`centrum`, `echo`, `ussd`, `downloading`, `email`, `odeslijsms`, `outs`, `tempa`,
+`tempb`, `ailo`, `aihi`, `blokujbin`, `hardware`, `rygiel`, `wejscia`, `katalog`,
+`zdjecie`, `pobierz`, `onr`, `offr`, `connect`, `gprsstat`, `historia`, `wifi`,
+`apipdefault`, `apiprestart`, `lanstat`, `grzanie`, `walkon`, `walkoff`,
+`deviceup`, `setapn`, `netstat`, `wrltemp`, `lines`.
+
+Część tylko odczytuje (np. `stan`, `wejscia`, `gprsstat`, `lanstat`, `netstat`, `lines`),
+ale już `stan` zapisuje w dzienniku zdarzenie `0x16` („Zapytanie o status systemu”).
+Inne sterują systemem (`zal`/`wyl` uzbrajają i rozbrajają, `blokuj`, `outs`, `rygiel`)
+albo zmieniają ustawienia (`kod`, `dodajtel`, `czas`).
+Dla bramki to najprostsza droga do uzbrajania przez port serwisowy ❓,
+ale wymaga kodu użytkownika i nie zostało jeszcze sprawdzone na sprzęcie.
 
 ## Jak pracuje OptimaGSM Manager
 

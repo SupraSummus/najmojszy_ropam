@@ -78,10 +78,12 @@
 0x9d0535dc f rnet_build_frame    Wypełnia ramkę: adres, komenda, długość, dane.
 0x9d0536d0 f rnet_send_multi     Wysyła dłuższy blok w wielu ramkach.
 0x9d05366c f rnet_queue_msg      Wysyła do paneli komunikat (np. 0x30) ❓.
-0x9d030d60 f expin_service       Gniazdo 6, ekspander wejść: 0xDD (8 B stanu systemu) → 16 B stanów wejść i status; co 11. obieg 0xDF, co 60. 0xDC.
-0x9d030b30 f expin_read_dc       Ekspander wejść: 0xDC (1 B) → 64 B do 0xA0001234 (opis modułu ❓).
-0x9d030c08 f expin_read_df       Ekspander wejść: 0xDF (8 B) → pełny blok stanu modułu (do 0x76 B).
+0x9d030d60 f aero_service        Gniazdo 6, kontroler AP-AERO: 0xDD (8 B stanu systemu) → 16 B stanów urządzeń radiowych, status, piloty; co 11. obieg 0xDF, co 60. 0xDC.
+0x9d030b30 f aero_read_dc        AP-AERO: 0xDC (1 B) → 64 B do 0xA0001234 (opis modułu ❓).
+0x9d030c08 f aero_read_df        AP-AERO: 0xDF (8 B) → pełny blok stanu modułu (do 0x76 B).
 0x9d00199c f inputs_set_lines    Wpisuje wartości linii (u16) kolejnych wejść do g_inputs_state, od wejścia o podanym numerze.
+0x9d066c0c f expi_service        Gniazda 11, 12, ekspander wejść EXP-I8-RN: 0xDD (1 B) → 8 × u16 wartości linii i bajt statusu.
+0x9d0635f0 f expo_service        Gniazda 13, 14, ekspander wyjść EXP-O8x-RN ❓.
 0x9d06311c f psu_service         Gniazdo 7, zasilacz buforowy (PSR-ECO ❓): 0xDD (4 B) → stan 230 V, usterki, napięcia, akumulator; zdarzenia 0x29, 0x2B.
 0x9d05f088 f code_lookup         Szuka kodu w tablicy 32 użytkowników (34 B na wpis); zwraca numer, 100 dla kodu serwisowego, 0xFF gdy brak.
 0xa00162e4 d g_users             Tablica użytkowników: 32 × 34 B (kod jako napis, +0x0D uprawnienia).
@@ -121,7 +123,8 @@
 0xa000015a d g_sys_flags         Flagi systemowe; bit 1 = sesja serwisowa (ON-LINE), gaśnie ok. 1,5 min po ostatniej komendzie.
 0xa00012fc d g_svc_buf           Bufor odpowiedzi protokołu serwisowego (m.in. 1100 B stanu dla 0x24).
 0x9d06cc10 f SoftReset           PLIB: wstrzymanie DMA, odblokowanie SYSKEY, zapis RSWRST, restart procesora.
-0x9d05f714 f svc_end_session     Zakończenie sesji: używane przez komendy 0x26/0x2F, kończy się SoftReset.
+0x9d05f714 f sys_restart         Restart centrali (FUN_9d062ff8, potem SoftReset); wołany przez komendy 0x1F i 0x2F oraz po bezczynności sesji zdalnej.
+0x9d0249b4 f fgr4_channel_cmd    Port 1, moduł FGR-4 (adres 0xEE): cmd 2 z bitem kanału i czasem, cmd 1 odczyt; komendy serwisowe 0x26–0x29.
 0x9d03c2dc f svc_send_status     Odsyła 4-bajtowy status (little-endian).
 0x9d03c374 f svc_check_code      Porównuje 6 bajtów z hasłem komunikacji z konfiguracji.
 0xa0015d25 d g_service_code      Hasło komunikacji (6 B), w Managerze pole „Hasło komunikacji”; bajty 1–6 sekcji COMM.
@@ -154,3 +157,28 @@
 0xa00151b8 d g_cfg_crc           CRC-16/XMODEM konfiguracji (w g_config pod 0xCCB8).
 0xa0008500 d g_config            Konfiguracja centrali (52 412 B), zawartość pliku 0:config.rpm.
 0x9d06b79c d CONFIG_SIZE         Rozmiar konfiguracji: 52 412.
+
+# --- dziennik zdarzeń, zegar; docs/zdarzenia.md ---
+0x9d052120 f event_log_ex        Zapis zdarzenia: czas (6 B z zegara), kod, argument, drugi argument; rekord 16 B.
+0x9d051a94 f log_append          Dopisuje rekord do pierścienia 10 000 rekordów we flashu.
+0x9d052490 f log_count           Liczba rekordów (10 000, gdy pierścień się zawinął).
+0x9d051dc8 f log_send_block      Wysyła XMODEM-em paczkę 100 rekordów po 16 B.
+0x9d052500 f log_read_cmd        Komenda serwisowa 0x04: liczba (4 B), potem paczki; argument 1 = cały dziennik, inny = ostatnie 1000.
+0x9d0519c4 f log_clear           Kasuje dziennik (komenda 0x05).
+0x9d03da1c f outputs_selftest    Test wyjść i sygnalizacji po skasowaniu dziennika (komenda 0x05).
+0x9d041fd0 f rtc_get             Odczyt zegara (struktura pod 0xA00000FC).
+0x9d041f64 f rtc_set             Ustawienie zegara (komenda 0x0D, 8 B).
+0x9d049064 d event_texts         Tablica par (kod u32, wskaźnik na tekst) z opisami zdarzeń, do 0x9D049474.
+0xa0017428 d g_module_names      19 wskaźników na nazwy modułów, indeks = numer gniazda (1 = TPR:1, 6 = AP-AERO, 11 = EXPI:1, …).
+
+# --- komendy dodatkowe 0x32–0x45 (protokół aplikacji), docs/protokol-serwisowy.md ---
+0x9d01730c f ext_outputs         Komenda 0x35: sterowanie wyjściami ❓.
+0x9d019034 f ext_arm             Komenda 0x36: uzbrojenie stref w otwartej sesji (strefy ∧ uprawnienia kodu, tryb nocny).
+0x9d0192fc f ext_disarm          Komenda 0x37: rozbrojenie stref w sesji ❓.
+0x9d0087c4 f output_force_on     Wymusza włączenie wyjścia (bit 3 bajtu stanu), zeruje jego czas; komenda 0x2C.
+0x9d008838 f output_force_off    Wymusza wyłączenie wyjścia (bit 2 bajtu stanu).
+0x9d008740 f output_force_off2   Wymusza wyłączenie i kasuje stan automatyczny (bit 0); komenda 0x2D.
+0x9d008a78 f output_is_on        Stan wyjścia: bit 3 = włączone, bit 2 = wyłączone, inaczej bit 0 (logika).
+0x9d004c2c f zone_outputs_off    Wyłącza aktywne wyjścia danej strefy (sygnalizatory ❓); komenda 0x31.
+0x9d016544 f sms_execute         Wykonuje polecenie SMS „KKKK polecenie” (komenda serwisowa 0x19); tablica 52 poleceń pod 0x9D05759C.
+0x9d016474 f sms_code_lookup     Kod z pierwszych 4 znaków polecenia SMS (spacja na 5. pozycji).

@@ -82,7 +82,7 @@ void task_bus(void)
         break;
       case 5:
         uVar4 = FUN_9d05db40(uVar7);
-        FUN_9d0249b4(uVar4);
+        fgr4_channel_cmd(uVar4);
         break;
       case 6:
         thunk_FUN_9d05d558(uVar7,&local_48,0x20);

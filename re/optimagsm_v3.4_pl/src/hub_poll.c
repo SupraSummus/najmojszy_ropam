@@ -27,7 +27,7 @@ char hub_poll(void)
   {
     if (DAT_a0000003 == '\0') {
       for (local_60 = 0; local_60 < 8; local_60 = local_60 + 1) {
-        uVar1 = FUN_9d008a78((uint)DAT_a0015a0a + local_60);
+        uVar1 = output_is_on((uint)DAT_a0015a0a + local_60);
         auStack_4c[local_60] = uVar1;
         if ((auStack_4c[local_60] == (uint)(byte)(&DAT_a0001fc2)[local_60 * 10]) ||
            ((&DAT_a0001fc2)[local_60 * 10] == -1)) {
@@ -60,10 +60,10 @@ char hub_poll(void)
       }
       for (local_60 = 0; local_60 < 8; local_60 = local_60 + 1) {
         if (((&DAT_a0001fc2)[local_60 * 10] == '\x01') && (auStack_4c[local_60] == 0)) {
-          FUN_9d0087c4((uint)DAT_a0015a0a + local_60);
+          output_force_on((uint)DAT_a0015a0a + local_60);
         }
         else if (((&DAT_a0001fc2)[local_60 * 10] == '\0') && (auStack_4c[local_60] == 1)) {
-          FUN_9d008838((uint)DAT_a0015a0a + local_60);
+          output_force_off((uint)DAT_a0015a0a + local_60);
         }
         if (((&DAT_a0001fc0)[local_60 * 10] != -1) && (((&DAT_a0001fc1)[local_60 * 10] & 4) == 0)) {
           local_53 = 1;
@@ -100,7 +100,7 @@ char hub_poll(void)
   }
   else {
     for (local_60 = 0; local_60 < 8; local_60 = local_60 + 1) {
-      uVar1 = FUN_9d008a78((uint)DAT_a0015a0a + local_60);
+      uVar1 = output_is_on((uint)DAT_a0015a0a + local_60);
       auStack_4c[local_60] = uVar1;
       if ((auStack_4c[local_60] == (uint)(byte)(&DAT_a0001f05)[local_60 * 0x14]) ||
          ((&DAT_a0001f05)[local_60 * 0x14] == -1)) {
@@ -121,10 +121,10 @@ char hub_poll(void)
       DAT_a0015a04 = DAT_a0015a04 & 0xfb | ((DAT_a0001efa & 1) != 0) << 2;
       for (local_60 = 0; local_60 < 8; local_60 = local_60 + 1) {
         if (((&DAT_a0001f05)[local_60 * 0x14] == '\x01') && (auStack_4c[local_60] == 0)) {
-          FUN_9d0087c4((uint)DAT_a0015a0a + local_60);
+          output_force_on((uint)DAT_a0015a0a + local_60);
         }
         else if (((&DAT_a0001f05)[local_60 * 0x14] == '\0') && (auStack_4c[local_60] == 1)) {
-          FUN_9d008838((uint)DAT_a0015a0a + local_60);
+          output_force_off((uint)DAT_a0015a0a + local_60);
         }
         if ((&DAT_a0001f0a)[local_60 * 0x14] == -0x5f) {
           FUN_9d037010(&DAT_9d06e600,local_60,2);

@@ -40,6 +40,12 @@ także transfer 1100 B w blokach po 1024 B.
 Działa też z kablem wpiętym w gniazdo, ale odłączonym od komputera:
 spoczynek nadajnika XIAO za 1 kΩ przeważa echo niezasilonego FT232BL.
 
+Znany błąd ❓: raz most przestał nadawać do centrali
+(odbiór działał dalej, centrala nie rozpoznawała naszych pakietów)
+po ok. 10 minutach bezczynności z zamkniętym portem;
+pomogło dopiero ponowne wgranie (restart XIAO).
+Przyczyny jeszcze nie znamy.
+
 Po drodze wyszły dwie usterki montażu, warte zapamiętania:
 
 1. kabel USB-MGSM wpięty w gniazdo, ale odłączony od komputera:

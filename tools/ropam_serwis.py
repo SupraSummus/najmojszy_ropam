@@ -4,7 +4,8 @@
 Odtworzony z firmware'u v3.4 i sprawdzony na sprzęcie
 (z OptimaGSM Managerem jako wzorcem).
 Obsługuje wyłącznie operacje odczytu.
-Celowo nie ma tu komend 0x26 i 0x2F: restartują centralę.
+Celowo nie ma tu komend 0x1F i 0x2F (restart centrali)
+ani 0x05 (kasuje dziennik zdarzeń i testuje wyjścia).
 
 Każda komenda włącza w centrali flagę sesji serwisowej na ok. 1,5 min,
 w czasie której część zdarzeń jest pomijana (docs/stan-centrali.md).
@@ -16,6 +17,8 @@ Użycie:
     ropam_serwis.py PORT id                  # komenda 0x01
     ropam_serwis.py PORT stan [PLIK]         # komenda 0x24 (stan na żywo)
     ropam_serwis.py PORT konfiguracja HASŁO PLIK   # komenda 0x03
+    ropam_serwis.py PORT dziennik [PLIK]     # komenda 0x04: ostatnie 1000 zdarzeń
+    ropam_serwis.py PORT raport              # komenda 0x4C: raport diagnostyczny
     ropam_serwis.py PORT koniec              # od razu kończy sesję serwisową
         HASŁO: 6 znaków, hex:xxxxxxxxxxxx albo plik:ŚCIEŻKA (hex w pliku)
     ROPAM_DEBUG=1 wypisuje każdy bajt na stderr.
@@ -210,6 +213,27 @@ def end_session(port, timeout=10):
 
 
 STATUS_SIZE = 1100
+LOG_RECORD = 16
+
+
+def read_log(port):
+    """Komenda 0x04 z argumentem 0: ostatnie (najwyżej) 1000 zdarzeń.
+
+    Centrala wysyła najpierw liczbę zdarzeń (4 B),
+    potem osobnymi transmisjami paczki po 100 rekordów po 16 B,
+    od paczki 0 do paczki zawierającej ostatni rekord włącznie.
+    Zwraca (liczba, rekordy); rekordów może być więcej niż zdarzeń,
+    bo ostatnia paczka jest zawsze pełna.
+    """
+    send(port, bytes([0x04, 0x00]))
+    count = int.from_bytes(receive(port)[:4], "little")
+    blocks = min(count, 1000) // 100 + 1
+    data = bytearray()
+    for _ in range(blocks):
+        data += receive(port)[:100 * LOG_RECORD]
+    records = [bytes(data[i:i + LOG_RECORD])
+               for i in range(0, len(data), LOG_RECORD)]
+    return count, records[:min(count, 1000)]
 
 
 def bits(value, count):
@@ -278,6 +302,18 @@ def main():
         with open(sys.argv[4], "wb") as f:
             f.write(data)
         print(f"zapisano {len(data)} B")
+    elif cmd == "dziennik" and len(sys.argv) in (3, 4):
+        count, records = read_log(port)
+        print(f"zdarzeń w dzienniku: {count}, odczytano {len(records)}")
+        if len(sys.argv) == 4:
+            with open(sys.argv[3], "wb") as f:
+                f.write(b"".join(records))
+        for r in records[-20:]:
+            print(r.hex(" "))
+    elif cmd == "raport":
+        send(port, bytes([0x4C]))
+        text = strip_padding(receive(port)).rstrip(b"\0")
+        print(text.decode("cp1250", "replace"))
     elif cmd == "koniec":
         end_session(port)
         print("sesja serwisowa zakończona")

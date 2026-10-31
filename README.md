@@ -29,6 +29,8 @@ Co wiemy, a czego nie, opisują pliki w [`docs/`](docs/):
   format konfiguracji: sekcje, wejścia, wyjścia, strefy,
 - [`docs/stan-centrali.md`](docs/stan-centrali.md):
   stan na żywo (komenda 0x24), sesja serwisowa i restart,
+- [`docs/zdarzenia.md`](docs/zdarzenia.md):
+  dziennik zdarzeń (komenda 0x04) i wszystkie kody zdarzeń z firmware'u,
 - [`docs/protokol-serwisowy.md`](docs/protokol-serwisowy.md):
   XMODEM-owy protokół programowania przez gniazdo RJ12,
 - [`docs/uwagi-bezpieczenstwa.md`](docs/uwagi-bezpieczenstwa.md):

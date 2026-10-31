@@ -38,7 +38,7 @@ void bus_poll_round(char param_1)
         }
         break;
       case 6:
-        local_e = expin_service();
+        local_e = aero_service();
         break;
       case 7:
         local_e = psu_service();
@@ -56,19 +56,19 @@ void bus_poll_round(char param_1)
         local_e = FUN_9d058b88(&DAT_a0000280);
         break;
       case 0xb:
-        iVar3 = FUN_9d066c0c(0xb);
+        iVar3 = expi_service(0xb);
         local_e = iVar3 != 0;
         break;
       case 0xc:
-        iVar3 = FUN_9d066c0c(0xc);
+        iVar3 = expi_service(0xc);
         local_e = iVar3 != 0;
         break;
       case 0xd:
-        iVar3 = FUN_9d0635f0(0xd);
+        iVar3 = expo_service(0xd);
         local_e = iVar3 != 0;
         break;
       case 0xe:
-        iVar3 = FUN_9d0635f0(0xe);
+        iVar3 = expo_service(0xe);
         local_e = iVar3 != 0;
         break;
       case 0xf:
@@ -100,21 +100,21 @@ void bus_poll_round(char param_1)
            ((&DAT_a0017100)[local_10] == '\x01')) {
           if ((((byte)(&DAT_a00159a1)[(uint)local_10 * 0xb] & 0x1f) >> 4 != 1) &&
              ((&DAT_a0017100)[local_10] != '\0')) {
-            FUN_9d052120(0x81,0,local_10);
+            event_log_ex(0x81,0,local_10);
           }
         }
         else {
-          FUN_9d052120(0x81,1,local_10);
+          event_log_ex(0x81,1,local_10);
         }
         if ((((byte)(&DAT_a00159a1)[(uint)local_10 * 0xb] & 0x3f) >> 5 == 0) ||
            ((&DAT_a0017114)[local_10] == '\x01')) {
           if ((((byte)(&DAT_a00159a1)[(uint)local_10 * 0xb] & 0x3f) >> 5 != 1) &&
              ((&DAT_a0017114)[local_10] != '\0')) {
-            FUN_9d052120(0x80,0,local_10);
+            event_log_ex(0x80,0,local_10);
           }
         }
         else {
-          FUN_9d052120(0x80,1,local_10);
+          event_log_ex(0x80,1,local_10);
         }
         (&DAT_a0017114)[local_10] =
              (byte)(((uint)(byte)(&DAT_a00159a1)[(uint)local_10 * 0xb] << 0x1a) >> 0x1f);

@@ -120,18 +120,27 @@ Centrala trzyma tablicę 18 gniazd po 11 B (`g_modules`) ✅.
 Bajt 0 to adres na magistrali, bit 0 bajtu 1 oznacza moduł aktywny.
 Numer gniazda ma stałe znaczenie (`bus_poll_round`) ✅:
 
-| Gniazdo | Obsługa |
-|---|---|
-| 1–4 | panele dotykowe TPR:1–4 (`tpr_service`) |
-| 5 | `FUN_9d05d0a0` ❓ |
-| 6 | ekspander wejść na magistrali, np. EXP-I8-RN (`expin_service`, niżej) |
-| 7 | zasilacz buforowy, najpewniej PSR-ECO-5012-RS (`psu_service`, niżej) |
-| 8 | moduł na porcie 1 (złącze EXP) ❓ |
-| 9 | koncentrator Hub-IQPLC (`hub_poll`) |
-| 10 | `FUN_9d058b88` ❓ |
-| 11, 12 | `FUN_9d066c0c` ❓ (np. APx-Aero) |
-| 13, 14 | `FUN_9d0635f0` ❓ |
-| 15 | zarządzanie sesją zdalną ❓ |
+| Gniazdo | Moduł (nazwa z firmware'u) | Obsługa |
+|---|---|---|
+| 1–4 | `TPR:1`–`TPR:4`, panele dotykowe | `tpr_service` |
+| 5 | `EXP8`, lokalny ekspander EXP-I8 na złączu X2 | `FUN_9d05d0a0` ❓ |
+| 6 | `AP-AERO`, kontroler urządzeń radiowych Aero | `aero_service`, niżej |
+| 7 | `PSR-ECO`, zasilacz buforowy | `psu_service`, niżej |
+| 8 | `FGR-4`, moduł na porcie 1 (złącze EXP) | `FUN_9d0257ec` ❓ |
+| 9 | `HUB PLC`, koncentrator Hub-IQPLC | `hub_poll` |
+| 10 | `RF-4`, sterownik radiowy pilotów | `FUN_9d058b88` ❓ |
+| 11, 12 | `EXPI:1`, `EXPI:2`, ekspandery wejść EXP-I8-RN | `expi_service`, niżej |
+| 13, 14 | `EXPO:1`, `EXPO:2`, ekspandery wyjść EXP-O8x-RN | `expo_service` ❓ |
+| 15 | `AP-IP` | zarządzanie sesją zdalną ❓ |
+| 16, 17 | `VAR-1`, `VSR-2` | ❓ |
+
+Nazwy pochodzą z tablicy `g_module_names` (indeks = numer gniazda),
+której centrala używa w zdarzeniach „Utrata połączenia z …” ✅
+([`zdarzenia.md`](zdarzenia.md)).
+Bajty gniazda, które już znamy ✅:
+`+0` adres, `+1` flagi (bit 0 = aktywne, bity 2, 4, 5, 6 z bajtu statusu modułu),
+`+4` liczba wejść modułu, `+5` numer pierwszego wejścia systemu (od 0),
+`+8` ostatni bajt statusu modułu.
 
 Tablica jest też częścią odpowiedzi na komendę serwisową `0x24`
 ([`stan-centrali.md`](stan-centrali.md)).
@@ -210,9 +219,11 @@ Przed właściwą ramką centrala wysyła ramkę „budzącą”
 z tym samym adresem, komendą `0x9B` i bez danych,
 a po 150 ms ramkę właściwą ✅ (`FUN_9d053b2c`).
 
-## Ekspander wejść (gniazdo 6)
+## Kontroler AP-AERO (gniazdo 6)
 
-Odczytane z firmware'u (`expin_service`), niesprawdzone na kablu ❓.
+Odczytane z firmware'u (`aero_service`), niesprawdzone na kablu ❓.
+Kontroler obsługuje do 16 urządzeń radiowych Aero (czujki) jako wejścia systemu
+oraz piloty.
 Adres modułu to bajt 0 gniazda 6;
 w gnieździe są też numer pierwszego wejścia systemu, które moduł obsługuje,
 i liczba tych wejść (razem najwyżej do wejścia 48).
@@ -235,34 +246,53 @@ Obieg (licznik w gnieździe):
 | 5 | bity 0–3: czuwanie nocne stref 1–4; bity 4–7 ❓ |
 | 6–7 | stan wyjść 17–32 (z uwzględnieniem polaryzacji wyjścia) |
 
-Ekspander dostaje więc stan czuwania, stref i części wyjść;
-wyjścia 17–32 sugerują, że ta sama wymiana obsługuje też ekspandery wyjść ❓.
+Kontroler dostaje więc stan czuwania, stref i wyjść 17–32 ❓
+(być może dla sygnalizatorów radiowych).
 
 ### `0xDD`: odpowiedź
 
 | Bajt | Treść |
 |---|---|
 | 0–15 | stan każdego z 16 wejść, opis niżej |
-| 16 | bit 7: zdarzenie `0x7F` (argument: bajt 18) i flaga w stanie systemu, wtedy wszystkie wejścia jak przy bicie 3 (sabotaż modułu ❓); bit 6: po ok. 1800 obiegach centrala zleca coś modułowi ❓; bit 4: flaga gniazda |
+| 16 | bit 7: zagłuszanie systemu Aero (zdarzenie `0x7F`, argument: bajt 18; flaga w stanie systemu), wtedy wszystkie wejścia jak przy bicie 3; bit 6: po ok. 1800 obiegach centrala zleca coś modułowi ❓; bit 4: flaga gniazda |
 | 17–18 | ❓ (bajt 18 to argument zdarzenia `0x7F`) |
-| 19–21 | bity 0–4: numer ❓, bity 8–12: przyciski ❓, bit 13: zdarzenie `0x6A`; bajt 21 ≠ 0 zapisywany osobno ❓ |
+| 19–21 | pilot: bity 0–4 numer pilota, bity 8–12 przyciski (zdarzenia `0x6B`–`0x6F`: panika ❓ i A–D), bit 13 słaba bateria pilota (`0x6A`); bajt 21 ≠ 0 zapisywany osobno ❓ |
 
 Bajt stanu wejścia:
 
 | Bit | Znaczenie |
 |---|---|
-| 0 | wejście obsługiwane; bez niego wartość linii 60000 |
+| 0 | urządzenie zarejestrowane; bez niego wartość linii 60000 |
 | 1 | naruszenie: wartość linii 2200 zamiast 1100 |
 | 2 | wartość linii 60000 (przerwa ❓) |
-| 3 | zdarzenia `0x71`/`0x72` przy zmianie; wartość linii 2200 albo 60000 zależnie od ustawienia ❓ |
-| 4 | zdarzenia `0x73`/`0x74` przy zmianie, przy `0x73` także SMS z ustawień |
+| 3 | brak łączności z urządzeniem (zdarzenia `0x71`/`0x72`); wartość linii 2200 albo 60000 zależnie od ustawienia |
+| 4 | słaba bateria urządzenia (zdarzenia `0x73`/`0x74`), przy `0x73` także SMS z ustawień |
 
 Centrala nie przenosi stanów wejść wprost,
 tylko udaje zmierzone wartości linii (1100 spoczynek, 2200 naruszenie, 60000 przerwa)
 i wpisuje je do tablicy wejść (`inputs_set_lines`),
 tej samej, w której są pomiary wejść płyty głównej
 (pod `0xDC` odpowiedzi na komendę serwisową `0x24`, [`stan-centrali.md`](stan-centrali.md)).
-Dalej wejścia ekspandera przechodzą tę samą logikę co wejścia płyty.
+Dalej wejścia radiowe przechodzą tę samą logikę co wejścia płyty.
+
+## Ekspander wejść EXP-I8-RN (gniazda 11, 12)
+
+Odczytane z firmware'u (`expi_service`), niesprawdzone na kablu ❓.
+
+Zapytanie `0xDD`, 1 B: `0x00`.
+Odpowiedź `0xDD`:
+
+| Bajt | Treść |
+|---|---|
+| 0–15 | 8 × u16: zmierzone wartości linii wejść ekspandera |
+| 16 | status: bity 0, 2, 3, 4 przechodzą do flag gniazda (bity 2, 5, 4, 6) |
+
+W przeciwieństwie do AP-AERO ekspander przysyła prawdziwe pomiary linii,
+które centrala wpisuje wprost do tablicy wejść (`inputs_set_lines`),
+od wejścia z bajtu `+5` gniazda.
+Z flag gniazda obieg magistrali tworzy zdarzenia
+`0x80` (niskie napięcie ekspandera), `0x81` (awaria AUX) i `0x82` (restart),
+z numerem gniazda jako argumentem ✅.
 
 ## Zasilacz (gniazdo 7)
 
@@ -290,8 +320,8 @@ Przy zdarzeniach wysyła SMS-y z ustawień ❓.
 
 ## Do zrobienia
 
-- Moduły w gniazdach 5, 8 i 10–14.
-- Ekspander i zasilacz: sprawdzić na kablu; znaczenie bajtów oznaczonych ❓.
+- Moduły w gniazdach 5, 8, 10 i 13–17.
+- AP-AERO, EXP-I8-RN i zasilacz: sprawdzić na kablu; znaczenie bajtów oznaczonych ❓.
 - Dokładny układ żądań `0x12`–`0x1D` (pola przed kodem) i komend `0x25`–`0x40`.
 - Weryfikacja na kablu: pasywny podsłuch RS-485 z 115200 8N1,
   sprawdzenie CRC narzędziem `ropamnet.py check`

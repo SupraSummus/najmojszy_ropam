@@ -61,3 +61,17 @@ każe centrali połączyć się z dowolnym serwerem
 i udostępnić mu programowanie.
 Bezpieczeństwo zależy więc od tajności kodu SMS
 i od tego, czy sesja jest dodatkowo uwierzytelniana albo szyfrowana. ❓
+
+## Logowanie aplikacji kodem użytkownika
+
+Komendy dodatkowe protokołu serwisowego (`0x32`–`0x45`)
+pozwalają po zalogowaniu kodem użytkownika m.in. uzbrajać i rozbrajać strefy
+([`protokol-serwisowy.md`](protokol-serwisowy.md#komendy-dodatkowe-0x320x45)).
+Kod ma tylko cztery cyfry,
+a sposób, w jaki logowanie go wykorzystuje,
+pozwala odzyskać go z jednej podsłuchanej wymiany logowania.
+Jeśli ten sam protokół idzie przez sieć (moduł AP-IP, połączenie GPRS),
+podsłuch sieci wystarczyłby do przejęcia kodu. ❓
+
+Zgodnie z zasadą na początku tego pliku
+szczegóły opublikujemy po zgłoszeniu producentowi.

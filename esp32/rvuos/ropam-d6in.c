@@ -1,11 +1,11 @@
 /*
- * Test, dokąd prowadzi D6 (GPIO16): nóżka jako wejście, bez nadawania.
+ * Test, dokąd prowadzą D6 (GPIO16) i D8 (GPIO19): obie nóżki jako wejścia, bez nadawania.
  *
- * Dwie fazy po 3 s: wejście z podciąganiem w dół, potem w górę.
- * W każdej liczy próbki w stanie niskim i zmiany stanu D6 oraz D7 (dla porównania)
+ * Dwie fazy po 3 s: wejścia z podciąganiem w dół, potem w górę.
+ * W każdej liczy próbki w stanie niskim i zmiany stanu D6, D8 oraz D7 (dla porównania)
  * i wypisuje je na konsolę, potem się zatrzymuje; po nim trzeba wgrać z powrotem most.
  *
- * Jak czytać wynik dla D6:
+ * Jak czytać wynik dla D6 i D8 (za opornikiem do linii widać przez niego, co się na niej dzieje):
  *   zmiany w obu fazach        - coś na linii nadaje (TX centrali, przełączany kabel);
  *   niski w dół, wysoki w górę - nóżka wisi w powietrzu;
  *   niski w obu fazach         - masa albo linia trzymana nisko;
@@ -59,31 +59,43 @@ static uint64_t now(uint32_t *hz)
     return t;
 }
 
+static const struct {
+    const char *name;
+    uint32_t pin;
+} pins[] = { { "D6", 16 }, { "D7", 17 }, { "D8", 19 } };
+
+#define PINS (sizeof pins / sizeof pins[0])
+
 static void phase(const char *name, uint32_t pull)
 {
     REG(IO_MUX_PIN(16)) = IO_MUX_MATRIX(2) | IO_MUX_INPUT | pull;
+    REG(IO_MUX_PIN(19)) = IO_MUX_MATRIX(2) | IO_MUX_INPUT | pull;
     uint32_t hz;
     uint64_t start = now(&hz);
-    uint32_t samples = 0, low16 = 0, low17 = 0, edges16 = 0, edges17 = 0;
+    uint32_t samples = 0, low[PINS] = { 0 }, edges[PINS] = { 0 };
     uint32_t prev = REG(GPIO_IN);
     while (now(&hz) - start < 3u * (uint64_t)hz) {
         for (int k = 0; k < 256; k++) {
             uint32_t in = REG(GPIO_IN);
             samples++;
-            low16 += ((in >> 16) & 1u) == 0;
-            low17 += ((in >> 17) & 1u) == 0;
-            edges16 += ((in ^ prev) >> 16) & 1u;
-            edges17 += ((in ^ prev) >> 17) & 1u;
+            for (uint32_t i = 0; i < PINS; i++) {
+                low[i] += ((in >> pins[i].pin) & 1u) == 0;
+                edges[i] += ((in ^ prev) >> pins[i].pin) & 1u;
+            }
             prev = in;
         }
     }
     rv_puts(BOOT_CAP_PRINT, name);
     rv_puts(BOOT_CAP_PRINT, "\n");
     show("  probek", samples);
-    show("  D6 niski", low16);
-    show("  D6 zmian", edges16);
-    show("  D7 niski", low17);
-    show("  D7 zmian", edges17);
+    for (uint32_t i = 0; i < PINS; i++) {
+        rv_puts(BOOT_CAP_PRINT, "  ");
+        rv_puts(BOOT_CAP_PRINT, pins[i].name);
+        show(" niski", low[i]);
+        rv_puts(BOOT_CAP_PRINT, "  ");
+        rv_puts(BOOT_CAP_PRINT, pins[i].name);
+        show(" zmian", edges[i]);
+    }
 }
 
 int main(void);
@@ -92,9 +104,10 @@ int main(void)
     expect("map IO MUX", rv_process_install(BOOT_CAP_PROCESS, REGION_IO_MUX, BOOT_CAP_IO_MUX, RIGHT_R | RIGHT_W));
     expect("map GPIO", rv_process_install(BOOT_CAP_PROCESS, REGION_GPIO, BOOT_CAP_GPIO, RIGHT_R | RIGHT_W));
 
-    /* D6 przestaje nadawać: wyjście z matrycy, bez zezwolenia na wyjście. */
-    REG(GPIO_ENABLE_W1TC) = 1u << 16;
+    /* D6 i D8 przestają nadawać: wyjście z matrycy, bez zezwolenia na wyjście. */
+    REG(GPIO_ENABLE_W1TC) = (1u << 16) | (1u << 19);
     REG(GPIO_OUT_SEL(16)) = SIG_GPIO_OUT | GPIO_OE_FROM_ENABLE;
+    REG(GPIO_OUT_SEL(19)) = SIG_GPIO_OUT | GPIO_OE_FROM_ENABLE;
 
     phase("podciaganie w dol", IO_MUX_PULLDN);
     phase("podciaganie w gore", IO_MUX_PULLUP);

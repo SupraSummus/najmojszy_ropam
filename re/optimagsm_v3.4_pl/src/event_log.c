@@ -6,7 +6,7 @@
 void event_log(undefined1 param_1,undefined1 param_2)
 
 {
-  FUN_9d052120(param_1,param_2,0);
+  event_log_ex(param_1,param_2,0);
   return;
 }
 

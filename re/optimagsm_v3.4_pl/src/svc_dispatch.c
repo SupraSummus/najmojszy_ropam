@@ -154,16 +154,16 @@ LAB_9d03c8d4:
   case 4:
     FUN_9d054ee4(1,0xe8,100,100,0x32);
     if ((DAT_a000277c._1_1_ & 0x7f) >> 6 == 0) {
-      FUN_9d052500(local_318[1]);
+      log_read_cmd(local_318[1]);
     }
     else {
       FUN_9d05290c();
     }
     break;
   case 5:
-    FUN_9d0519c4();
+    log_clear();
     svc_send_status(1);
-    FUN_9d03da1c();
+    outputs_selftest();
     break;
   case 7:
     local_c = FUN_9d05d918(4);
@@ -189,7 +189,7 @@ LAB_9d03c8d4:
     local_118 = CONCAT13((undefined1)local_314,
                          CONCAT12(local_318[3],CONCAT11(local_318[2],local_318[1])));
     local_114 = CONCAT13(local_310,local_314._1_3_);
-    FUN_9d041f64(&local_118);
+    rtc_set(&local_118);
     svc_send_status(1);
     break;
   case 0xf:
@@ -283,7 +283,7 @@ LAB_9d03c8d4:
     break;
   case 0x19:
     DAT_a0000135 = 1;
-    iVar4 = FUN_9d016544(local_318 + 1);
+    iVar4 = sms_execute(local_318 + 1);
     if (iVar4 != 0) {
       g_svc_buf = 0;
       for (local_338 = 0; local_338 < 3; local_338 = local_338 + 1) {
@@ -323,7 +323,7 @@ LAB_9d03c8d4:
     break;
   case 0x1f:
     DAT_a001fff0 = 1;
-    svc_end_session();
+    sys_restart();
     break;
   case 0x21:
     FUN_9d061674();
@@ -399,10 +399,10 @@ LAB_9d03c8d4:
     break;
   case 0x2c:
     *(undefined4 *)(&DAT_a0002950 + (uint)local_318[1] * 0x10) = 0;
-    FUN_9d0087c4(local_318[1]);
+    output_force_on(local_318[1]);
     break;
   case 0x2d:
-    FUN_9d008740(local_318[1]);
+    output_force_off2(local_318[1]);
     break;
   case 0x2e:
     local_318[0] = 0x78;
@@ -411,7 +411,7 @@ LAB_9d03c8d4:
     break;
   case 0x2f:
     svc_send_status(1);
-    svc_end_session();
+    sys_restart();
     break;
   case 0x30:
     uVar3 = CONCAT11(local_318[2],local_318[1]);
@@ -442,10 +442,10 @@ LAB_9d03c8d4:
     }
     else {
       _g_sys_flags = _g_sys_flags & 0xfffe | 1;
-      FUN_9d004c2c(0);
-      FUN_9d004c2c(1);
-      FUN_9d004c2c(2);
-      FUN_9d004c2c(3);
+      zone_outputs_off(0);
+      zone_outputs_off(1);
+      zone_outputs_off(2);
+      zone_outputs_off(3);
     }
     event_log(0x1c,_g_sys_flags & 1);
     svc_send_status(1);

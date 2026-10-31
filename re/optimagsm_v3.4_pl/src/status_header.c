@@ -125,7 +125,7 @@ undefined1 status_header(undefined1 param_1,int param_2)
   FUN_9d05e3e4(DAT_a00000c0,param_2 + 0x78,0);
   memcpy(param_2 + 0xb8,&DAT_a000277c,0x10);
   memcpy(param_2 + 200,&DAT_a0000154,8);
-  FUN_9d041fd0(auStack_5c);
+  rtc_get(auStack_5c);
   memcpy(param_2 + 0xd0,auStack_5c,8);
   local_8c = FUN_9d01efac(param_1);
   memcpy(param_2 + 0xd8,&local_8c,4);

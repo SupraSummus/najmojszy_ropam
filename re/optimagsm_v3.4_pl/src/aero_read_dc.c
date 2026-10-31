@@ -1,9 +1,9 @@
-// expin_read_dc @ 9d030b30
+// aero_read_dc @ 9d030b30
 // Wygenerowane przez tools/ghidra/analyze.sh; nie edytować ręcznie.
 
-/* Ekspander wejść: 0xDC (1 B) → 64 B do 0xA0001234 (opis modułu ❓). */
+/* AP-AERO: 0xDC (1 B) → 64 B do 0xA0001234 (opis modułu ❓). */
 
-undefined4 expin_read_dc(void)
+undefined4 aero_read_dc(void)
 
 {
   int iVar1;

@@ -1,9 +1,9 @@
-// expin_read_df @ 9d030c08
+// aero_read_df @ 9d030c08
 // Wygenerowane przez tools/ghidra/analyze.sh; nie edytować ręcznie.
 
-/* Ekspander wejść: 0xDF (8 B) → pełny blok stanu modułu (do 0x76 B). */
+/* AP-AERO: 0xDF (8 B) → pełny blok stanu modułu (do 0x76 B). */
 
-undefined4 expin_read_df(int param_1,undefined4 param_2)
+undefined4 aero_read_df(int param_1,undefined4 param_2)
 
 {
   int iVar1;

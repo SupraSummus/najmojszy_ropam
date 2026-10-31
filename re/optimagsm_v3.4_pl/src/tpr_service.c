@@ -178,7 +178,7 @@ undefined4 tpr_service(int param_1)
     }
     break;
   case 0x1e:
-    local_30[0] = FUN_9d052490();
+    local_30[0] = log_count();
     uVar11 = local_128;
     local_128._0_2_ = CONCAT11((char)local_30[0],1);
     local_128._3_1_ = SUB41(uVar11,3);
@@ -314,10 +314,10 @@ LAB_9d01ec50:
   case 0x25:
     local_34 = (uint)DAT_a001700c._1_1_;
     if (DAT_a001700c._2_1_ == 0) {
-      FUN_9d008838(local_34);
+      output_force_off(local_34);
     }
     else {
-      FUN_9d0087c4(local_34);
+      output_force_on(local_34);
       *(undefined4 *)(&DAT_a0002950 + local_34 * 0x10) = 0;
     }
     local_34 = outputs_mask();
@@ -333,7 +333,7 @@ LAB_9d01ec50:
     local_14 = ram0xa0017011;
     cVar9 = FUN_9d02775c(DAT_a001700c._1_1_,DAT_a001700c._2_1_,DAT_a001700c._3_1_);
     local_14 = CONCAT13(cVar9 + '\x01',(undefined3)local_14);
-    FUN_9d041f64(&local_18);
+    rtc_set(&local_18);
     event_log(0x28,0);
     break;
   case 0x29:
@@ -342,10 +342,10 @@ LAB_9d01ec50:
     }
     else {
       _g_sys_flags = _g_sys_flags & 0xfffe | 1;
-      FUN_9d004c2c(0);
-      FUN_9d004c2c(1);
-      FUN_9d004c2c(2);
-      FUN_9d004c2c(3);
+      zone_outputs_off(0);
+      zone_outputs_off(1);
+      zone_outputs_off(2);
+      zone_outputs_off(3);
     }
     event_log(0x1c,_g_sys_flags & 1);
     break;
@@ -432,7 +432,7 @@ LAB_9d01ec50:
     for (local_34 = 0; local_34 < 0x20; local_34 = local_34 + 1) {
       if ((1 << (local_34 & 0x1f) & (uVar11 << 0x18 | uVar12 << 0x10 | uVar13 << 8 | uVar14)) != 0)
       {
-        FUN_9d0087c4(local_34);
+        output_force_on(local_34);
         *(undefined4 *)(&DAT_a0002950 + local_34 * 0x10) = 0;
       }
     }
@@ -445,14 +445,14 @@ LAB_9d01ec50:
     for (local_34 = 0; local_34 < 0x20; local_34 = local_34 + 1) {
       if ((1 << (local_34 & 0x1f) & (uVar11 << 0x18 | uVar12 << 0x10 | uVar13 << 8 | uVar14)) != 0)
       {
-        FUN_9d008838(local_34);
+        output_force_off(local_34);
       }
     }
     break;
   case 0x3f:
     FUN_9d01d1e4((int)cVar9,0x36);
     os_delay(10000);
-    svc_end_session();
+    sys_restart();
     break;
   case 0x40:
     FUN_9d01d1e4((int)cVar9,0x40);

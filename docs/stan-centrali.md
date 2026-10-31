@@ -50,10 +50,13 @@ Czy wszystkie ustawienia (np. modemu) działają bez restartu, nie wiemy ❓.
 Do okazjonalnego podglądu się nada,
 ale stała integracja powinna iść inną drogą (magistrala RopamNET albo AP-IP).
 
-## Komendy `0x26` i `0x2F`: restart
+## Komendy `0x1F` i `0x2F`: restart
 
-Obie odsyłają status 1, a potem wywołują `SoftReset()`:
-odblokowanie `SYSKEY` i zapis `RSWRST` ✅.
+`0x2F` odsyła status 1, a potem wywołuje `sys_restart`,
+który kończy się `SoftReset()`: odblokowanie `SYSKEY` i zapis `RSWRST` ✅.
+`0x1F` robi to samo bez statusu,
+ale wcześniej wpisuje 1 pod `0xA001FFF0`, najpewniej dla bootloadera ❓.
+(Wcześniej opisywaliśmy tu `0x26`, błędnie: to polecenie dla modułu FGR-4.)
 OptimaGSM Manager wysyła `0x2F` przy każdym rozłączeniu kablem 🔌,
 więc **każde rozłączenie Managera restartuje centralę**.
 Nasz klient tych komend nie wysyła.

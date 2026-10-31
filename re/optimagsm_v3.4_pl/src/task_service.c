@@ -36,7 +36,7 @@ void task_service(void)
         if (((DAT_a000277c._1_1_ & 0x7f) >> 6 != 1) &&
            ((2 < uStack_10 &&
             (_g_sys_flags = _g_sys_flags & 0xfffd, (DAT_a000277e & 0x3f) >> 5 != 0)))) {
-          svc_end_session();
+          sys_restart();
         }
       }
       else {
