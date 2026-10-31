@@ -1,0 +1,242 @@
+diff --git a/user/radio/esp32c6/root.c b/user/radio/esp32c6/root.c
+index 7980627..eae5f86 100644
+--- a/user/radio/esp32c6/root.c
++++ b/user/radio/esp32c6/root.c
+@@ -98,7 +98,7 @@ static struct system sys = {
+     .self = &self,
+     .out = &kout,
+     .board = RADIO_CHIP,
+-    .clients_wanted = CLIENT_BIT(CLIENT_ECHO) | CLIENT_BIT(CLIENT_CLOCK),
++    .clients_wanted = CLIENT_BIT(CLIENT_ECHO) | CLIENT_BIT(CLIENT_CLOCK) | CLIENT_BIT(CLIENT_ROPAM),
+ };
+ static struct block drv_ram;
+ static struct block dump_bank; /* the dump engine's, for a program that needs it; see drv.h and dump.h */
+diff --git a/user/wifi/netproc.c b/user/wifi/netproc.c
+index 10866c1..a83c6bf 100644
+--- a/user/wifi/netproc.c
++++ b/user/wifi/netproc.c
+@@ -24,6 +24,16 @@
+ #include "net.h"
+ #include "wifi.h"
+ 
++/* najmojszy_ropam: HTTP with the alarm panel's state on port 80, and the panel's client, on the ESP32-C6. */
++#include "devices.h"
++#ifdef BOOT_CAP_UART0
++#define WITH_HTTP 1
++#include "pins.h"
++#include "ropam/tcp.c"
++#include "ropam/strona.c"
++#include "ropam/ropam-klient.c"
++#endif
++
+ #define TICK_US 100000u
+ 
+ struct netp {
+@@ -35,6 +45,11 @@ struct netp {
+     uint32_t now; /* ms since the process started, by its timer */
+     struct bulk_ref frame; /* the buffer the driver lent to fill that the stack builds its next frame in */
+     uint32_t tx_full;
++#ifdef WITH_HTTP
++    struct tcp tcp;
++    uint8_t http_tx[TCP_CONNS][HTTP_TX_MAX];
++    uint32_t seen_version, seen_at; /* the panel's snapshot last seen to change, and when, ms */
++#endif
+ };
+ 
+ _Static_assert(LINK_BUFFER >= NET_FRAME_MAX, "the stack builds a frame in a buffer the driver lends");
+@@ -105,6 +120,27 @@ static void on_status(struct net *n, void *arg, const struct net_datagram *d)
+     net_udp_send(n, d->from_ip, d->from_port, NET_PORT_STATUS, (const uint8_t *)l.buf, l.len);
+ }
+ 
++#ifdef WITH_HTTP
++/* An HTTP request: the page or JSON from the panel's last snapshot. */
++static uint32_t np_http(void *arg, const uint8_t *req, uint32_t len, uint8_t *out, uint32_t max)
++{
++    struct netp *p = arg;
++    struct ropam_snapshot snap;
++    struct seqlock shared = ropam_shared(p->page);
++    uint32_t version = 0;
++    int ok = 0;
++    for (int tries = 0; tries < 4 && !ok; tries++) {
++        ok = seqlock_read(&shared, &snap, &version);
++    }
++    if (!ok || version == 0) {
++        memset(&snap, 0, sizeof(snap));
++    }
++    const struct strona_stan st = { snap.have ? snap.status : 0, p->now - p->seen_at, snap.reads, snap.errors,
++                                    snap.last_error };
++    return strona_http(&st, req, len, out, max);
++}
++#endif
++
+ /* A turn of the link: each frame the driver lent read where it lies by the stack, and given back; 1 if it had more. */
+ static int link_turn(struct netp *p)
+ {
+@@ -159,6 +195,9 @@ __attribute__((noreturn)) void net_main(struct child_page *c)
+     net_init(&p->net, page->mac, np_buffer, np_send, p);
+     sock_init(&p->sock, &p->net, np_put, p);
+     net_udp_bind(&p->net, NET_PORT_STATUS, on_status, p);
++#ifdef WITH_HTTP
++    tcp_init(&p->tcp, &p->net, HTTP_PORT, np_http, p, &p->http_tx[0][0], HTTP_TX_MAX);
++#endif
+     struct seqlock config = net_config(page);
+     seqlock_init(&config);
+ 
+@@ -179,6 +218,14 @@ __attribute__((noreturn)) void net_main(struct child_page *c)
+             rv_timer_period(CHILD_TIMER, CHILD_BIT_TIMER, TICK_US, &skipped);
+             p->now += (skipped + 1u) * (TICK_US / 1000u);
+             net_tick(&p->net, p->now);
++#ifdef WITH_HTTP
++            tcp_tick(&p->tcp, p->now);
++            uint32_t version = *(volatile uint32_t *)(uintptr_t)p->page->ropam;
++            if (version != p->seen_version) {
++                p->seen_version = version;
++                p->seen_at = p->now;
++            }
++#endif
+         }
+         if (bits & CHILD_BIT_PARENT) {
+             clients_changed(p);
+diff --git a/user/wifi/system.c b/user/wifi/system.c
+index 4a0e171..f86504f 100644
+--- a/user/wifi/system.c
++++ b/user/wifi/system.c
+@@ -4,6 +4,8 @@
+ 
+ #include "system.h"
+ 
++#include "devices.h"
++
+ #include "lib/libc.h"
+ #include "rvuos.h"
+ #include "sntp.h"
+@@ -11,7 +13,7 @@
+ 
+ /* Each child's table and data: its page at the base, its state and two packets' buffers on its stack. */
+ #define NET_TABLE        16u
+-#define NET_DATA_SIZE    0x2000u
++#define NET_DATA_SIZE    0x8000u /* najmojszy_ropam: room for TCP and HTTP */
+ #define CLIENT_TABLE     8u
+ #define CLIENT_DATA_SIZE 0x2000u
+ #define CLIENT_RESTARTS  3u
+@@ -30,6 +32,9 @@ static const struct {
+     [CLIENT_ECHO] = { "the echo", echo_main },
+     [CLIENT_CLOCK] = { "the clock", clock_main },
+     [CLIENT_LOGGER] = { "the logger", logger_main },
++#ifdef BOOT_CAP_UART0
++    [CLIENT_ROPAM] = { "the ropam", ropam_main },
++#endif
+ };
+ 
+ void system_halt(uint32_t code)
+@@ -78,6 +83,10 @@ void system_net_build(struct system *s, struct bulk_end *driver_link, const uint
+     system_must(s, "a slot for the network's addresses", slot_new(self, &s->config));
+     system_must(s, "carve the network's addresses",
+                 rv_frame_carve(self->room.made, config_at, NET_CONFIG_SIZE, s->config));
++    uint32_t ropam_at = (uint32_t)(uintptr_t)np->ropam - self->room.base;
++    system_must(s, "a slot for the panel's snapshot", slot_new(self, &s->ropam_area));
++    system_must(s, "carve the panel's snapshot",
++                rv_frame_carve(self->room.made, ropam_at, ROPAM_AREA_SIZE, s->ropam_area));
+     system_must(s, "a bit to wake itself", child_bit(self, n, &np->more_bit));
+     system_must(s, "its inbox to wake itself", child_give_bits(self, n, n->inbox, np->more_bit, &np->more));
+ }
+@@ -97,7 +106,8 @@ static void client_build(struct system *s, uint32_t i)
+     struct client *cl = &s->clients[i];
+     struct child *c = &cl->child;
+     uint32_t region;
+-    system_must(s, "build a client", child_new(s->self, c, kinds[i].name, CLIENT_TABLE, CLIENT_DATA_SIZE));
++    system_must(s, "build a client", child_new(s->self, c, kinds[i].name, CLIENT_TABLE,
++                                               i == CLIENT_ROPAM ? 0x4000u : CLIENT_DATA_SIZE));
+     system_must(s, "connect a client", bulk_connect(s->self, &s->socks, i, c, &((struct client_page *)c->page)->net));
+     if (i == CLIENT_LOGGER) {
+         system_must(s, "give the logger the log", child_map(s->self, c, BOOT_CAP_LOG, RIGHT_R | RIGHT_W, &region));
+@@ -107,6 +117,15 @@ static void client_build(struct system *s, uint32_t i)
+         system_must(s, "give the clock the addresses", child_map(s->self, c, s->config, RIGHT_R, &region));
+         ((struct clock_page *)c->page)->config = net_config((const struct net_page *)s->network.page);
+     }
++#ifdef BOOT_CAP_UART0
++    if (i == CLIENT_ROPAM) {
++        system_must(s, "give the ropam UART0", child_map(s->self, c, BOOT_CAP_UART0, RIGHT_R | RIGHT_W, &region));
++        system_must(s, "give the ropam the IO MUX", child_map(s->self, c, BOOT_CAP_IO_MUX, RIGHT_R | RIGHT_W, &region));
++        system_must(s, "give the ropam the GPIO", child_map(s->self, c, BOOT_CAP_GPIO, RIGHT_R | RIGHT_W, &region));
++        system_must(s, "give the ropam its snapshot", child_map(s->self, c, s->ropam_area, RIGHT_R | RIGHT_W, &region));
++        ((struct ropam_page *)c->page)->shared = ropam_shared((const struct net_page *)s->network.page);
++    }
++#endif
+     system_must(s, "start a client", child_start(s->self, c, kinds[i].entry, 0, CLIENT_UNITS));
+     cl->down = 0;
+ }
+diff --git a/user/wifi/system.h b/user/wifi/system.h
+index bab188e..77ef45c 100644
+--- a/user/wifi/system.h
++++ b/user/wifi/system.h
+@@ -18,7 +18,7 @@
+ #include "lib/self.h"
+ 
+ /* The network process's clients, each on the connection of its index; see wifi.h. */
+-enum { CLIENT_ECHO, CLIENT_CLOCK, CLIENT_LOGGER, CLIENTS };
++enum { CLIENT_ECHO, CLIENT_CLOCK, CLIENT_LOGGER, CLIENT_ROPAM, CLIENTS };
+ #define CLIENT_BIT(i) (1u << (i))
+ 
+ struct client {
+@@ -49,6 +49,7 @@ struct system {
+     struct bulk link;  /* which the driver lends the network process */
+     struct bulk socks; /* which the network process lends its clients */
+     uint32_t config;     /* a frame of the network's addresses in the network process's page, for the clock */
++    uint32_t ropam_area; /* najmojszy_ropam: a frame of the panel's snapshot there, for the ropam client */
+     struct client clients[CLIENTS];
+     int clients_built;
+ };
+diff --git a/user/wifi/wifi.h b/user/wifi/wifi.h
+index 2581c07..dc68008 100644
+--- a/user/wifi/wifi.h
++++ b/user/wifi/wifi.h
+@@ -33,6 +33,7 @@
+ #include "lib/bulk.h"
+ #include "lib/child.h"
+ #include "lib/seqlock.h"
++#include "ropam/bramka.h"
+ #include "sock.h"
+ 
+ /*
+@@ -161,8 +162,18 @@ struct net_page {
+     volatile uint32_t rx_frames, tx_frames, pings, datagrams;
+     /* The network's addresses, as net_config lays them out; the clock is given these bytes alone. */
+     uint32_t config[NET_CONFIG_SIZE / 4u] __attribute__((aligned(NET_CONFIG_SIZE)));
++    /* najmojszy_ropam: the alarm panel's snapshot, ropam/bramka.h, which the ropam client writes. */
++    uint32_t ropam[ROPAM_AREA_SIZE / 4u] __attribute__((aligned(ROPAM_AREA_SIZE)));
+ };
+ 
++_Static_assert(SEQLOCK_BYTES(sizeof(struct ropam_snapshot)) <= ROPAM_AREA_SIZE, "the snapshot fits its bytes");
++
++/* The seqlock of the panel's snapshot in the network process's page. */
++static inline struct seqlock ropam_shared(const struct net_page *p)
++{
++    return seqlock_shape((uint32_t)(uintptr_t)p->ropam, sizeof(struct ropam_snapshot));
++}
++
+ /* The seqlock of the network's addresses in the network process's page. */
+ static inline struct seqlock net_config(const struct net_page *p)
+ {
+@@ -223,11 +234,21 @@ struct logger_page {
+     volatile uint32_t carried; /* from the logger: the bytes hosts have said they have */
+ };
+ 
++/* najmojszy_ropam: the alarm panel's client, on UART0, ropam/ropam-klient.c. */
++enum ropam_state {
++    ROPAM_READING = CHILD_RUNNING + 1, /* read the panel once */
++};
++struct ropam_page {
++    struct client_page c;
++    struct seqlock shared; /* the snapshot in the network process's page, which it writes */
++};
++
+ void driver_main(struct child_page *page);
+ void net_main(struct child_page *page);
+ void echo_main(struct child_page *page);
+ void clock_main(struct child_page *page);
+ void logger_main(struct child_page *page);
++void ropam_main(struct child_page *page);
+ 
+ /*
+  * A client's side of its connection to the network process, client.c:

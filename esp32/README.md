@@ -12,6 +12,30 @@ Budowanie i wgrywanie (potrzebne: clang z obsługą RISC-V, lld, llvm-objcopy, e
 esp32/rvuos/zbuduj.sh ropam-most wgraj   # buduje i wgrywa na /dev/ttyACM0
 ```
 
+## Bramka: strona ze stanem centrali przez Wi-Fi
+
+`zbuduj.sh bramka wgraj` buduje system Wi-Fi rvuos z dwoma dodatkami
+(łatki `rvuos-net-tcp.patch` i `rvuos-wifi-ropam.patch`):
+
+- klient centrali `ropam` (`ropam-klient.c` nad `ropam.c`),
+  osobny proces z UART0, który co 5 s czyta stan (komenda `0x24`),
+  zamyka sesję serwisową i publikuje migawkę w pamięci dzielonej z procesem sieciowym;
+- serwer HTTP na porcie 80 w procesie sieciowym (`tcp.c`, `strona.c`):
+  `/` to strona ze strefami, wejściami i wyjściami, `/stan.json` to samo dla programów.
+  Tylko podgląd, bez żadnych poleceń.
+
+Sieć bierze z `private/wifi.conf` (poza gitem), linie `ssid=` i `pass=`;
+skrypt dopisuje `run=0`, żeby system działał bez końca.
+`antenna=ufl` przełącza XIAO na złącze anteny zewnętrznej.
+Adres IP widać w logu startu, który skrypt pokazuje przez minutę.
+
+Testy na komputerze: `esp32/rvuos/test/tcp-test.c`, `strona-test.c`
+(polecenia kompilacji na ich początku).
+
+## `rvuos/ropam-stan.c`: odczyt stanu na konsolę USB
+
+Pierwszy krok bramki: XIAO sam czyta stan centrali co 10 s i wypisuje go na konsolę USB.
+
 ## `rvuos/ropam-most.c`: most USB ↔ gniazdo serwisowe
 
 XIAO udaje kabel USB-MGSM:

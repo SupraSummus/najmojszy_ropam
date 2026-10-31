@@ -15,7 +15,7 @@
 
 #include <stdint.h>
 
-#include "net.h"
+#include "wifi/net.h"
 
 #define TCP_CONNS   2u
 #define TCP_RX_MAX  1024u /* najdłuższe zapytanie */

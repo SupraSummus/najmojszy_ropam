@@ -8,13 +8,13 @@
 
 #define IP_TCP 6u
 
-#define FIN 0x01u
-#define SYN 0x02u
-#define RST 0x04u
-#define PSH 0x08u
-#define ACK 0x10u
+#define T_FIN 0x01u
+#define T_SYN 0x02u
+#define T_RST 0x04u
+#define T_PSH 0x08u
+#define T_ACK 0x10u
 
-#define HEADER     20u
+#define T_HEADER     20u
 #define RTO_FIRST  400u   /* ms */
 #define RTO_LAST   6400u
 #define TRIES      8u
@@ -90,12 +90,12 @@ static uint32_t window(const struct tcp_conn *c)
     return TCP_RX_MAX - c->rx_len;
 }
 
-/* Segment do rozmówcy połączenia c (albo, gdy c to 0, do ip:port jako RST). */
+/* Segment do rozmówcy połączenia c (albo, gdy c to 0, do ip:port jako T_RST). */
 static void segment(struct tcp *t, uint32_t ip, uint16_t port, uint32_t seq, uint32_t ack, uint32_t flags,
                     uint32_t win, const uint8_t *data, uint32_t len)
 {
-    uint8_t s[HEADER + 4 + TCP_MSS];
-    uint32_t head = HEADER + ((flags & SYN) ? 4u : 0u);
+    uint8_t s[T_HEADER + 4 + TCP_MSS];
+    uint32_t head = T_HEADER + ((flags & T_SYN) ? 4u : 0u);
     put16(s, t->port);
     put16(s + 2, port);
     put32(s + 4, seq);
@@ -105,7 +105,7 @@ static void segment(struct tcp *t, uint32_t ip, uint16_t port, uint32_t seq, uin
     put16(s + 14, win);
     put16(s + 16, 0);
     put16(s + 18, 0);
-    if (flags & SYN) {
+    if (flags & T_SYN) {
         s[20] = 2; /* MSS */
         s[21] = 4;
         put16(s + 22, TCP_MSS);
@@ -122,24 +122,24 @@ static void conn_free(struct tcp_conn *c)
 
 static void reset(struct tcp *t, struct tcp_conn *c)
 {
-    segment(t, c->ip, c->port, c->snd_nxt, c->rcv_nxt, RST | ACK, 0, 0, 0);
+    segment(t, c->ip, c->port, c->snd_nxt, c->rcv_nxt, T_RST | T_ACK, 0, 0, 0);
     t->resets++;
     conn_free(c);
 }
 
 static void send_ack(struct tcp *t, struct tcp_conn *c)
 {
-    segment(t, c->ip, c->port, c->snd_nxt, c->rcv_nxt, ACK, window(c), 0, 0);
+    segment(t, c->ip, c->port, c->snd_nxt, c->rcv_nxt, T_ACK, window(c), 0, 0);
 }
 
-/* Wysyła z odpowiedzi tyle, ile pozwala okno, a za nią FIN; od snd_nxt. */
+/* Wysyła z odpowiedzi tyle, ile pozwala okno, a za nią T_FIN; od snd_nxt. */
 static void push(struct tcp *t, struct tcp_conn *c)
 {
     if (c->state == TCP_SYN_RCVD) {
-        segment(t, c->ip, c->port, c->iss, c->rcv_nxt, SYN | ACK, window(c), 0, 0);
+        segment(t, c->ip, c->port, c->iss, c->rcv_nxt, T_SYN | T_ACK, window(c), 0, 0);
         c->snd_nxt = c->iss + 1u;
     } else if (c->answered) {
-        uint32_t base = c->iss + 1u, end = base + c->tx_len; /* FIN ma numer end */
+        uint32_t base = c->iss + 1u, end = base + c->tx_len; /* T_FIN ma numer end */
         uint32_t limit = c->snd_una + (c->peer_window < TCP_INFLIGHT * TCP_MSS ? c->peer_window : TCP_INFLIGHT * TCP_MSS);
         while (c->snd_nxt - base < c->tx_len && c->snd_nxt - c->snd_una < limit - c->snd_una) {
             uint32_t off = c->snd_nxt - base, len = c->tx_len - off;
@@ -150,13 +150,13 @@ static void push(struct tcp *t, struct tcp_conn *c)
                 len = limit - c->snd_nxt;
             }
             uint32_t last = off + len == c->tx_len;
-            segment(t, c->ip, c->port, c->snd_nxt, c->rcv_nxt, ACK | PSH | (last ? FIN : 0u), window(c),
+            segment(t, c->ip, c->port, c->snd_nxt, c->rcv_nxt, T_ACK | T_PSH | (last ? T_FIN : 0u), window(c),
                     c->tx + off, len);
             c->snd_nxt += len + (last ? 1u : 0u);
         }
         if (c->snd_nxt == end) {
-            /* pusta odpowiedź albo ponowienie samego FIN-a */
-            segment(t, c->ip, c->port, end, c->rcv_nxt, ACK | FIN, window(c), 0, 0);
+            /* pusta odpowiedź albo ponowienie samego T_FIN-a */
+            segment(t, c->ip, c->port, end, c->rcv_nxt, T_ACK | T_FIN, window(c), 0, 0);
             c->snd_nxt = end + 1u;
         }
         c->state = TCP_CLOSING;
@@ -192,11 +192,11 @@ static void input(struct net *n, void *arg, uint32_t from, const uint8_t *s, uin
 {
     struct tcp *t = arg;
     (void)n;
-    if (len < HEADER || checksum(from, t->net->ip, s, len) != 0) {
+    if (len < T_HEADER || checksum(from, t->net->ip, s, len) != 0) {
         return;
     }
     uint32_t head = (uint32_t)(s[12] >> 4) * 4u;
-    if (head < HEADER || head > len || be16(s + 2) != t->port) {
+    if (head < T_HEADER || head > len || be16(s + 2) != t->port) {
         return;
     }
     uint16_t port = (uint16_t)be16(s);
@@ -206,12 +206,12 @@ static void input(struct net *n, void *arg, uint32_t from, const uint8_t *s, uin
     struct tcp_conn *c = find(t, from, port);
 
     if (c == 0) {
-        if (flags & RST) {
+        if (flags & T_RST) {
             return;
         }
-        if ((flags & (SYN | ACK)) != SYN) {
-            segment(t, from, port, (flags & ACK) ? ack : 0u, seq + dlen + ((flags & FIN) ? 1u : 0u),
-                    RST | ((flags & ACK) ? 0u : ACK), 0, 0, 0);
+        if ((flags & (T_SYN | T_ACK)) != T_SYN) {
+            segment(t, from, port, (flags & T_ACK) ? ack : 0u, seq + dlen + ((flags & T_FIN) ? 1u : 0u),
+                    T_RST | ((flags & T_ACK) ? 0u : T_ACK), 0, 0, 0);
             return;
         }
         for (uint32_t i = 0; i < TCP_CONNS && c == 0; i++) {
@@ -220,7 +220,7 @@ static void input(struct net *n, void *arg, uint32_t from, const uint8_t *s, uin
             }
         }
         if (c == 0) {
-            segment(t, from, port, 0, seq + 1u, RST | ACK, 0, 0, 0);
+            segment(t, from, port, 0, seq + 1u, T_RST | T_ACK, 0, 0, 0);
             return;
         }
         t->isn += 0x10001u + t->net->now * 250u;
@@ -245,18 +245,18 @@ static void input(struct net *n, void *arg, uint32_t from, const uint8_t *s, uin
     }
 
     c->last = t->net->now;
-    if (flags & RST) {
+    if (flags & T_RST) {
         conn_free(c);
         return;
     }
-    if (flags & SYN) {
+    if (flags & T_SYN) {
         if (c->state == TCP_SYN_RCVD && seq + 1u == c->rcv_nxt) {
             c->snd_nxt = c->iss;
-            push(t, c); /* nasz SYN-ACK zginął */
+            push(t, c); /* nasz T_SYN-T_ACK zginął */
         }
         return;
     }
-    if (!(flags & ACK)) {
+    if (!(flags & T_ACK)) {
         return;
     }
     c->peer_window = (uint16_t)win;
@@ -269,17 +269,17 @@ static void input(struct net *n, void *arg, uint32_t from, const uint8_t *s, uin
         }
     }
     if (c->state == TCP_CLOSING && c->snd_una == c->iss + 1u + c->tx_len + 1u) {
-        if (dlen != 0 || (flags & FIN)) {
-            c->rcv_nxt = seq + dlen + ((flags & FIN) ? 1u : 0u);
+        if (dlen != 0 || (flags & T_FIN)) {
+            c->rcv_nxt = seq + dlen + ((flags & T_FIN) ? 1u : 0u);
             send_ack(t, c);
         }
-        if (c->peer_fin || (flags & FIN)) {
+        if (c->peer_fin || (flags & T_FIN)) {
             conn_free(c); /* obie strony zamknięte */
             return;
         }
     }
     int need_ack = 0;
-    if (dlen != 0 || (flags & FIN)) {
+    if (dlen != 0 || (flags & T_FIN)) {
         if (seq != c->rcv_nxt) {
             send_ack(t, c); /* nie po kolei: powtórzone potwierdzenie */
             return;
@@ -291,7 +291,7 @@ static void input(struct net *n, void *arg, uint32_t from, const uint8_t *s, uin
         copy(c->rx + c->rx_len, data, take);
         c->rx_len += take;
         c->rcv_nxt += take;
-        if ((flags & FIN) && take == dlen) {
+        if ((flags & T_FIN) && take == dlen) {
             c->rcv_nxt += 1u;
             c->peer_fin = 1;
         }

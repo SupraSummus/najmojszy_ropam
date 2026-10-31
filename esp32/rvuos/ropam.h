@@ -29,6 +29,8 @@ enum ropam_result {
 };
 
 #define ROPAM_STATUS_SIZE 1100u
+/* Bufor na odbiór stanu: 1100 B przychodzi w dwóch blokach po 1024 B. */
+#define ROPAM_STATUS_BUF 2048u
 
 /* Wysyła komendę (dane pakietu) XMODEM-em; ROPAM_OK albo błąd. */
 int ropam_send(const struct ropam_io *io, const uint8_t *data, uint32_t len);
@@ -36,7 +38,10 @@ int ropam_send(const struct ropam_io *io, const uint8_t *data, uint32_t len);
 int ropam_receive(const struct ropam_io *io, uint8_t *out, uint32_t max, uint32_t timeout_ms);
 /* Gasi flagę sesji serwisowej. */
 int ropam_end_session(const struct ropam_io *io);
-/* Stan centrali (0x24) do out[ROPAM_STATUS_SIZE], potem zamknięcie sesji. */
-int ropam_status(const struct ropam_io *io, uint8_t *out);
+/*
+ * Stan centrali (0x24) do buf[ROPAM_STATUS_BUF]: stan to pierwsze ROPAM_STATUS_SIZE bajtów; potem zamknięcie sesji.
+ * Biblioteka nie ma zmiennych globalnych (w rvuos kod dzielą procesy, każdy ze swoimi danymi).
+ */
+int ropam_status(const struct ropam_io *io, uint8_t *buf);
 
 #endif

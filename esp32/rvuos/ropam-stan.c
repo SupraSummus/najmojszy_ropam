@@ -144,7 +144,7 @@ int main(void)
     }
 
     const struct ropam_io io = { uart_get, uart_put, ms_now, 0 };
-    static uint8_t status[ROPAM_STATUS_SIZE];
+    static uint8_t status[ROPAM_STATUS_BUF];
     say("ropam-stan: start\n");
     for (uint32_t n = 1;; n++) {
         uint32_t t0 = ms_now(0);
