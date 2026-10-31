@@ -90,6 +90,24 @@ powyżej bloki 1024 B (STX).
 Dopełnienie: jeden bajt `0x1A`, dalej zera ✅.
 XMODEM nie przenosi długości, więc odbiorca dostaje dane z dopełnieniem.
 
+### Odporność na zakłócenia
+
+Na długim kablu albo obok radia (np. ESP32 z włączonym Wi-Fi)
+zdarzają się przekłamane, zgubione i dołożone bajty 🔌.
+Żeby odbiorca kosztował wtedy jedno ponowienie bloku, a nie cały odczyt:
+
+- Po złym bloku czekamy na ciszę na linii (ok. 50 ms), dopiero potem NAK.
+  Gdy zakłócenie dołożyło bajty, blok kończy się wcześniej,
+  a jego ogon jest jeszcze w drodze;
+  bez czekania bajty danych `0x18` i `0x04` z ogona
+  odbiorca bierze za CAN i EOT.
+- Przerwanie to dwa CAN z rzędu; pojedynczy pomijamy.
+- Gdy po pierwszym bloku komendy centrala odpowiada nowym `'C'` zamiast ACK,
+  bloku nie przyjęła: wysyłamy go od razu jeszcze raz.
+
+Test z udawaną centralą (`esp32/rvuos/test/ropam-test.c`)
+sprawdza te przypadki.
+
 ## Sesja
 
 1. Centrala nadaje `'C'`.

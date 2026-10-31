@@ -50,11 +50,23 @@ Jak to jest ułożone:
   W tym czasie pomija m.in. synchronizację wyjść z koncentratorem
   i nadrabia ją w następnym przebiegu odpytywania
   (szczegóły w [`docs/stan-centrali.md`](../docs/stan-centrali.md)).
+- Przy włączonym Wi-Fi na linii odbioru (D7) pojawiają się zakłócenia 🔌:
+  UART zgłasza `GLITCH_DET` i błędy ramki,
+  a bez Wi-Fi tego nie widać.
+  Klient włącza filtr odbioru UART-u (impulsy krótsze niż ok. 1,6 µs),
+  który usuwa krótkie zakłócenia;
+  rzadkie dłuższe zakłócenia odbiór XMODEM przeżywa jednym ponowieniem bloku
+  (zob. „Odporność na zakłócenia” w [`docs/protokol-serwisowy.md`](../docs/protokol-serwisowy.md)).
+  Krótszy przewód do D7, mniejszy opornik szeregowy (1 kΩ zamiast 10 kΩ)
+  i antena zewnętrzna (`antenna=ufl`) z dala od przewodów
+  powinny zakłóceń ograniczyć ❓.
 - Obszar na dane procesów potomnych (`ROOM_SIZE`) jest powiększony do 64 KiB:
   proces sieciowy z TCP ma 32 KiB, `ropam` 16 KiB, echo i zegar po 8 KiB.
 
 Testy na komputerze: `esp32/rvuos/test/tcp-test.c`, `strona-test.c`
-(polecenia kompilacji na ich początku).
+i `ropam-test.c` (klient z udawaną centralą i udawanym czasem;
+sprawdza m.in., że flaga sesji gaśnie także po nieudanym odczycie).
+Polecenia kompilacji są na ich początku.
 
 ## `rvuos/ropam-stan.c`: odczyt stanu na konsolę USB
 

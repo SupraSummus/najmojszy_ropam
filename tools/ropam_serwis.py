@@ -143,8 +143,10 @@ def send(port, data, timeout=10):
             + crc.to_bytes(2, "big")
         for _ in range(10):
             write(port, packet)
-            # Liczy się tylko ACK; NAK albo cisza oznacza ponowienie.
-            if wait_for(port, {ACK, NAK}, 2) == ACK:
+            # Liczy się tylko ACK; NAK albo cisza oznacza ponowienie,
+            # a po pierwszym bloku także nowe 'C' (centrala zaprasza od nowa).
+            if wait_for(port, {ACK, NAK} | ({CRC_REQ} if n == 1 else set()),
+                        2) == ACK:
                 break
         else:
             raise IOError(f"blok {n} nie potwierdzony")
@@ -153,6 +155,13 @@ def send(port, data, timeout=10):
         if wait_for(port, {ACK}, 2) == ACK:
             return
     raise IOError("EOT nie potwierdzony")
+
+
+def purge(port, quiet=0.05, limit=2):
+    """Wyrzuca bajty, aż linia ucichnie na quiet sekund (najwyżej limit s)."""
+    end = time.monotonic() + limit
+    while time.monotonic() < end and read(port, 4096, quiet):
+        pass
 
 
 def receive(port, timeout=10):
@@ -173,16 +182,21 @@ def receive(port, timeout=10):
             write(port, bytes([ACK]))
             return bytes(out)
         if head == CAN:
-            raise IOError("centrala przerwała transmisję")
+            # Przerwanie to dwa CAN z rzędu; pojedynczy to najpewniej
+            # uszkodzony bajt.
+            if read_byte(port, 0.1) == CAN:
+                raise IOError("centrala przerwała transmisję")
+            continue
         if head not in SIZES:
             continue
         size = SIZES[head]
         rest = read(port, 2 + size + 2, 2)
-        if len(rest) != 2 + size + 2 or rest[0] != (~rest[1] & 0xFF):
-            write(port, bytes([NAK]))
-            continue
         payload = rest[2:2 + size]
-        if crc16_xmodem(payload) != int.from_bytes(rest[-2:], "big"):
+        if (len(rest) != 2 + size + 2 or rest[0] != (~rest[1] & 0xFF)
+                or crc16_xmodem(payload) != int.from_bytes(rest[-2:], "big")):
+            # Reszta złego bloku może być jeszcze w drodze; bez czekania
+            # na ciszę jej bajty 0x18 i 0x04 wzięlibyśmy za CAN i EOT.
+            purge(port)
             write(port, bytes([NAK]))
             continue
         if rest[0] == expected & 0xFF:

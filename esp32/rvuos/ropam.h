@@ -39,7 +39,8 @@ int ropam_receive(const struct ropam_io *io, uint8_t *out, uint32_t max, uint32_
 /* Gasi flagę sesji serwisowej. */
 int ropam_end_session(const struct ropam_io *io);
 /*
- * Stan centrali (0x24) do buf[ROPAM_STATUS_BUF]: stan to pierwsze ROPAM_STATUS_SIZE bajtów; potem zamknięcie sesji.
+ * Stan centrali (0x24) do buf[ROPAM_STATUS_BUF]: stan to pierwsze ROPAM_STATUS_SIZE bajtów; potem zamknięcie sesji,
+ * także po nieudanym odczycie, o ile centrala w ogóle zaprasza.
  * Biblioteka nie ma zmiennych globalnych (w rvuos kod dzielą procesy, każdy ze swoimi danymi).
  */
 int ropam_status(const struct ropam_io *io, uint8_t *buf);

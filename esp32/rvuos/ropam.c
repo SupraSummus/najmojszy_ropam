@@ -25,8 +25,8 @@ static uint16_t crc16(const uint8_t *p, uint32_t len)
     return (uint16_t)crc;
 }
 
-/* Czeka na któryś z bajtów a, b (b < 0: tylko a); zwraca go albo -1. */
-static int wait_for(const struct ropam_io *io, int a, int b, uint32_t ms)
+/* Czeka na któryś z bajtów a, b, c (ujemne nie liczą się); zwraca go albo -1. */
+static int wait_for(const struct ropam_io *io, int a, int b, int c, uint32_t ms)
 {
     uint32_t start = io->now(io->arg);
     for (;;) {
@@ -34,9 +34,9 @@ static int wait_for(const struct ropam_io *io, int a, int b, uint32_t ms)
         if (gone >= ms) {
             return -1;
         }
-        int c = io->get(io->arg, ms - gone);
-        if (c == a || (b >= 0 && c == b)) {
-            return c;
+        int got = io->get(io->arg, ms - gone);
+        if (got >= 0 && (got == a || got == b || got == c)) {
+            return got;
         }
     }
 }
@@ -84,13 +84,14 @@ int ropam_send(const struct ropam_io *io, const uint8_t *data, uint32_t len)
         uint16_t crc = crc16(packet + 3, size);
         packet[3 + size] = (uint8_t)(crc >> 8);
         packet[4 + size] = (uint8_t)crc;
+        /* Nowe 'C' zamiast ACK po pierwszym bloku: centrala bloku nie przyjęła i zaprasza od nowa. */
         int tries = 0;
         do {
             if (++tries > 10) {
                 return ROPAM_NOT_ACKED;
             }
             io->put(io->arg, packet, size + 5);
-        } while (wait_for(io, X_ACK, X_NAK, 2000) != X_ACK);
+        } while (wait_for(io, X_ACK, X_NAK, n == 1 ? X_CRC_REQ : -1, 2000) != X_ACK);
         if (chunk < size) {
             break;
         }
@@ -98,7 +99,7 @@ int ropam_send(const struct ropam_io *io, const uint8_t *data, uint32_t len)
     for (int tries = 0; tries < 10; tries++) {
         uint8_t eot = X_EOT;
         io->put(io->arg, &eot, 1);
-        if (wait_for(io, X_ACK, -1, 2000) == X_ACK) {
+        if (wait_for(io, X_ACK, -1, -1, 2000) == X_ACK) {
             return ROPAM_OK;
         }
     }
@@ -118,6 +119,17 @@ static int read_n(const struct ropam_io *io, uint8_t *to, uint32_t n, uint32_t m
     return 1;
 }
 
+/*
+ * Wyrzuca bajty, aż linia ucichnie na 50 ms (najwyżej ok. 2 s).
+ * Po złym bloku reszta bloku może być jeszcze w drodze; bez tego braliśmy ją za początek następnego,
+ * a bajt danych 0x18 albo 0x04 za CAN albo EOT.
+ */
+static void purge(const struct ropam_io *io)
+{
+    for (uint32_t i = 0; i < 2048u && io->get(io->arg, 50) >= 0; i++) {
+    }
+}
+
 int ropam_receive(const struct ropam_io *io, uint8_t *out, uint32_t max, uint32_t timeout_ms)
 {
     uint8_t block[2 + 1024 + 2];
@@ -126,11 +138,11 @@ int ropam_receive(const struct ropam_io *io, uint8_t *out, uint32_t max, uint32_
     uint8_t b = X_CRC_REQ;
     io->put(io->arg, &b, 1);
     for (;;) {
+        if (io->now(io->arg) - start > timeout_ms) {
+            return ROPAM_NO_DATA;
+        }
         int head = io->get(io->arg, 2000);
         if (head < 0) {
-            if (io->now(io->arg) - start > timeout_ms) {
-                return ROPAM_NO_DATA;
-            }
             if (got == 0) {
                 io->put(io->arg, &b, 1);
             }
@@ -142,14 +154,18 @@ int ropam_receive(const struct ropam_io *io, uint8_t *out, uint32_t max, uint32_
             return (int)got;
         }
         if (head == X_CAN) {
-            return ROPAM_CANCELLED;
+            /* Przerwanie to dwa CAN z rzędu; pojedynczy to najpewniej uszkodzony bajt. */
+            if (io->get(io->arg, 100) == X_CAN) {
+                return ROPAM_CANCELLED;
+            }
+            continue;
         }
         uint32_t size = head == X_STX ? 1024u : head == X_SOH ? 128u : head == X_BLK64 ? 64u : 0u;
         if (size == 0) {
             continue;
         }
         uint8_t reply = X_NAK;
-        if (read_n(io, block, size + 4, 2000) && block[0] == (uint8_t)~block[1] &&
+        if (read_n(io, block, size + 4, 500) && block[0] == (uint8_t)~block[1] &&
             crc16(block + 2, size) == ((uint16_t)block[2 + size] << 8 | block[3 + size])) {
             if (block[0] == (uint8_t)expected) {
                 for (uint32_t i = 0; i < size && got < max; i++) {
@@ -158,6 +174,8 @@ int ropam_receive(const struct ropam_io *io, uint8_t *out, uint32_t max, uint32_
                 expected++;
             }
             reply = X_ACK;
+        } else {
+            purge(io);
         }
         io->put(io->arg, &reply, 1);
     }
@@ -167,12 +185,12 @@ int ropam_receive(const struct ropam_io *io, uint8_t *out, uint32_t max, uint32_
 static int cancel_cycles(const struct ropam_io *io)
 {
     for (int i = 0; i < 3; i++) {
-        if (i != 0 && wait_for(io, X_CRC_REQ, -1, 3000) < 0) {
+        if (i != 0 && wait_for(io, X_CRC_REQ, -1, -1, 3000) < 0) {
             return ROPAM_NO_INVITE;
         }
         const uint8_t cancel[2] = { X_CAN, X_CAN };
         io->put(io->arg, cancel, 2);
-        if (wait_for(io, X_ACK, -1, 2000) != X_ACK) {
+        if (wait_for(io, X_ACK, -1, -1, 2000) != X_ACK) {
             return ROPAM_NOT_ACKED;
         }
     }
@@ -189,22 +207,25 @@ int ropam_status(const struct ropam_io *io, uint8_t *buf)
 {
     const uint8_t cmd = 0x24;
     int r = ropam_send(io, &cmd, 1);
-    if (r != ROPAM_OK) {
-        return r;
+    if (r == ROPAM_OK) {
+        r = ropam_receive(io, buf, ROPAM_STATUS_BUF, 10000);
+        if (r >= 0 && (uint32_t)r < ROPAM_STATUS_SIZE) {
+            r = ROPAM_NO_DATA;
+        }
     }
-    r = ropam_receive(io, buf, ROPAM_STATUS_BUF, 10000);
     if (r < 0) {
+        /* Centrala mogła już obsłużyć komendę i ustawić flagę sesji: gasimy ją, o ile w ogóle zaprasza. */
+        if (r != ROPAM_NO_INVITE && r != ROPAM_ECHO) {
+            (void)ropam_end_session(io);
+        }
         return r;
-    }
-    if ((uint32_t)r < ROPAM_STATUS_SIZE) {
-        return ROPAM_NO_DATA;
     }
     /*
      * Opcjonalna druga transmisja (odpowiedź modemu): centrala czeka wtedy na nasze 'C' zamiast nadawać swoje.
      * Bez niej pierwsze 'C' po transmisji jest świeżym zaproszeniem, więc sesję kończymy od razu na nim,
      * a centrala jest w trybie ON-LINE tylko przez czas samej wymiany.
      */
-    if (wait_for(io, X_CRC_REQ, -1, 1500) == X_CRC_REQ) {
+    if (wait_for(io, X_CRC_REQ, -1, -1, 1500) == X_CRC_REQ) {
         return cancel_cycles(io);
     }
     uint8_t extra[1024 + 128];

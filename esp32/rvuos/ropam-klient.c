@@ -18,7 +18,16 @@
 #include "ropam/ropam.c"
 
 #define RK_UART_FIFO   (UART0_BASE + 0x00u)
+#define RK_UART_INT_RAW (UART0_BASE + 0x04u)
+#define RK_UART_INT_CLR (UART0_BASE + 0x10u)
+#define RK_UART_RX_FILT (UART0_BASE + 0x18u)
 #define RK_UART_STATUS (UART0_BASE + 0x1Cu)
+#define RK_UART_UPDATE (UART0_BASE + 0x98u) /* UART_REG_UPDATE: ustawienia do domeny zegara UART-u */
+#define RK_INT_FRM_ERR (1u << 3)
+#define RK_INT_GLITCH  (1u << 11)
+/* Filtr odbioru: impulsy krótsze niż 64 takty zegara UART-u (1,6 µs przy 40 MHz; bit trwa 8,7 µs). */
+#define RK_GLITCH_FILT 64u
+#define RK_GLITCH_FILT_EN (1u << 8)
 #define RK_RXFIFO_CNT(s) ((s) & 0xFFu)
 #define RK_TXFIFO_CNT(s) (((s) >> 16) & 0xFFu)
 #define RK_PIN_TX_EXTRA 19u /* D8 */
@@ -101,18 +110,31 @@ __attribute__((noreturn)) void ropam_main(struct child_page *page)
     k.last = RK_REG(p->counter);
     child_report(page, CHILD_RUNNING);
 
+    /*
+     * Radio XIAO wprowadza na linię odbioru krótkie zakłócenia (GLITCH_DET, FRM_ERR),
+     * od których psują się bloki stanu; bez Wi-Fi ich nie ma.
+     */
+    RK_REG(RK_UART_RX_FILT) = RK_GLITCH_FILT_EN | RK_GLITCH_FILT;
+    RK_REG(RK_UART_UPDATE) = 1u;
+    for (uint32_t i = 0; i < 1000u && (RK_REG(RK_UART_UPDATE) & 1u); i++) {
+    }
     while (RK_RXFIFO_CNT(RK_REG(RK_UART_STATUS)) != 0) {
         (void)RK_REG(RK_UART_FIFO);
     }
-    say(&out, "ropam: up\n");
+    say(&out, "ropam: up, filtr odbioru %x\n", RK_REG(RK_UART_RX_FILT));
 
     const struct ropam_io io = { rk_get, rk_put, rk_now, &k };
     struct ropam_snapshot snap;
     uint8_t buf[ROPAM_STATUS_BUF];
+    uint32_t frm = 0, glitch = 0; /* odczyty, przy których UART widział błąd ramki albo zakłócenie */
     memset(&snap, 0, sizeof(snap));
     for (;;) {
         uint32_t start = rk_now(&k);
+        RK_REG(RK_UART_INT_CLR) = RK_INT_FRM_ERR | RK_INT_GLITCH;
         int r = ropam_status(&io, buf);
+        uint32_t raw = RK_REG(RK_UART_INT_RAW);
+        frm += (raw & RK_INT_FRM_ERR) != 0;
+        glitch += (raw & RK_INT_GLITCH) != 0;
         if (r == ROPAM_OK) {
             snap.reads++;
             snap.have = 1;
@@ -124,6 +146,10 @@ __attribute__((noreturn)) void ropam_main(struct child_page *page)
         } else {
             snap.errors++;
             say(&out, "ropam: odczyt nieudany, kod -%u\n", (uint32_t)-r);
+        }
+        if ((snap.reads + snap.errors) % 60u == 0) {
+            say(&out, "ropam: %u odczytów, %u nieudanych; z błędem ramki %u, z zakłóceniem %u\n", snap.reads + snap.errors,
+                snap.errors, frm, glitch);
         }
         snap.last_error = r;
         seqlock_write(&p->shared, &snap);
