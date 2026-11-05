@@ -14,7 +14,7 @@ Podgląd: `tools/ropam_config.py PLIK sekcje|wejscia|wyjscia|strefy|zrzut NAZWA`
 
 | Przesunięcie | Zawartość |
 |---|---|
-| `0x0000` | rozmiar (u16, `0xCCBC`), dwa bajty ❓, wersja formatu (u8), wersja firmware'u × 10 (u8), … |
+| `0x0000` | rozmiar (u16, `0xCCBC`), dwa bajty ❓, wersja Managera × 10, który ostatnio zapisał konfigurację (u8, 25 dla 2.5 🔌), wersja firmware'u × 10 (u8); bajt 9: Manager 2.5 wpisuje tu 34 ❓ |
 | `0x000E` | katalog: 28 wpisów po 14 B (nazwa 8 B, przesunięcie u16, rozmiar u16, 2 B ❓) |
 | `0x0196` | dane sekcji (przesunięcia w katalogu liczone od tego miejsca) |
 | `0xCCB6` | liczba sekcji |
@@ -31,7 +31,7 @@ Sekcje w v3.4 (kolejność i rozmiary takie same w każdej centrali z tą wersj�
 | `STREFY` | 176 | 4 strefy × 44 B |
 | `COUNT` | 18 | liczniki ❓ |
 | `SMTP` | 174 | serwer poczty |
-| `COMM` | 41 | komunikacja, m.in. hasło komunikacji (bajty 1–6) ✅ |
+| `COMM` | 41 | komunikacja: bajt flag (niżej), hasło komunikacji (bajty 1–6) ✅, klucz TCP/IP (bajty 17–32) ✅ |
 | `OPT` | 260 | opcje systemowe ❓ |
 | `GPRSCFG` | 176 | GPRS, monitoring |
 | `TIMR` | 648 | timery |
@@ -49,6 +49,29 @@ Sekcje w v3.4 (kolejność i rozmiary takie same w każdej centrali z tą wersj�
 | `APCFG` | 362 | moduł AP-IP |
 | `VAR1` | 68 | bramka domofonowa VAR-1 |
 | `WIFI` | 87 | Wi-Fi (AP-IP) |
+
+## Komunikacja (`COMM`, 41 B)
+
+W Managerze: „Komunikacja, testy, liczniki”, ramka „Opcje komunikacji”.
+
+| Bajt | Zawartość |
+|---|---|
+| 0 | flagi, niżej |
+| 1–6 | hasło komunikacji (argument odczytu `0x03`) ✅ |
+| 16 | ustawiany razem z kodem serwisowym przez panel TPR ❓ |
+| 17–32 | klucz szyfrowania aplikacji TCP/IP (16 znaków), klucz trybu zdalnego ✅ |
+
+Flagi (bajt 0), przypisane metodą różnicową w Managerze 2.5 🔌:
+
+| Bit | Opcja w Managerze | W firmware'ze |
+|---|---|---|
+| 0 | możliwa zmiana konfiguracji poprzez sms | |
+| 1 | możliwy zdalny dostęp poprzez TCP/IP (modem GSM lub WIFI) | bez niej SMS `connect` odmawia, chyba że centrala jest w trybie serwisowym ✅ |
+| 2 ❓ | wymagane pozwolenie na zdalny dostęp (kod główny) | |
+
+Nowa konfiguracja w Managerze 2.5 ma flagi `0x03`
+(SMS i zdalny dostęp TCP/IP włączone)
+i hasło komunikacji `111111` 🔌.
 
 ## Wejście (`INPUT`, 168 B)
 

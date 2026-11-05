@@ -7,7 +7,7 @@ od najprostszej do najambitniejszej.
 |---|---|---|---|---|
 | A | Modbus TCP przez AP-IP | Ethernet/Wi-Fi | ✅ | tak, ale okrojone |
 | B | protokół serwisowy | RS232TTL (RJ12) | ❌ | nie (tryb ON-LINE wyłącza funkcje centrali) |
-| C | protokół serwisowy po TCP | GPRS, `connect IP:port` | ❌ | do sprawdzenia |
+| C | protokół serwisowy po TCP | GPRS, `connect IP:port` | częściowo | nie (restart po każdej sesji) |
 | D | magistrala RopamNET | RS-485 | ❌ | tak, najpełniejsza |
 | E | bootloader PIC32 | RS232TTL + zworka `PR` | prawie (AN1388) | nie, tylko do firmware'u |
 
@@ -61,9 +61,12 @@ sama łączy się przez GPRS z podanym serwerem
 (RopamBridge albo komputer serwisowy z publicznym IP).
 Manager ma do tego wbudowany serwer TCP.
 
-Jeśli to ten sam protokół co w punkcie B,
-to własny serwer na Linuksie mógłby udawać Managera.
-Do sprawdzenia, w tym czy ruch jest szyfrowany.
+To ten sam protokół co w punkcie B ✅,
+tylko w innych ramkach i szyfrowany kluczem TCP/IP z konfiguracji
+([tryb zdalny](protokol-serwisowy.md#tryb-zdalny)).
+Wymaga włączonej w konfiguracji opcji zdalnego dostępu,
+a po każdej sesji centrala się restartuje,
+więc nadaje się do programowania, nie na stałą bramkę.
 
 ## D. Magistrala RopamNET (RS-485)
 

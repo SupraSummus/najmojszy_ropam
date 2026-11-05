@@ -129,7 +129,7 @@ Pozostałe są w `switch` w `FUN_9d03c3f0`.
 | Kod | Działanie | Pewność |
 |---|---|---|
 | `0x01` | identyfikacja: 12 B, opis niżej; zapisuje w dzienniku zdarzenie programowania | ✅ sprawdzone na sprzęcie |
-| `0x02` | zapis konfiguracji: blob 52 412 B (v3.4) z CRC-16/XMODEM, zapis do pliku `0:config.rpm` i kopii `0:cfgcpy.rpm`; odpowiedź: status | ✅ |
+| `0x02` | zapis konfiguracji: argument to rozmiar (u16), potem blob 52 412 B (v3.4) z CRC-16/XMODEM; przy zgodnym CRC zapis do pliku `0:config.rpm` i kopii `0:cfgcpy.rpm`; odpowiedź: status; hasła nie wymaga | ✅ |
 | `0x03` | odczyt konfiguracji: argument to 6-bajtowe „hasło komunikacji” (sekcja `COMM`); odpowiedź to dwie transmisje: status (1 = OK, 2 = złe hasło), a przy sukcesie konfiguracja (52 412 B, bloki 1024 B) | 🔌 |
 | `0x24` | stan centrali na żywo, 1100 B, opis w [`stan-centrali.md`](stan-centrali.md); Manager wysyła ją co ok. 0,5 s, póki jest połączony | 🔌 |
 | `0x2F` | status, a potem **restart centrali** (`sys_restart`, `SoftReset`); Manager wysyła `0x2F` przy rozłączeniu | ✅ 🔌 |
@@ -152,7 +152,7 @@ Pozostałe są w `switch` w `FUN_9d03c3f0`.
 | `0x2B` | zadanie magistrali nr 11 z 32 B danych (polecenie dla paneli TPR ❓) | |
 | `0x2C`, `0x2D` | wymuszenie włączenia (`0x2C`) albo wyłączenia (`0x2D`) wyjścia o numerze z bajtu 1 (od 0) | ✅ |
 | `0x2E` | komenda do modemu ❓ | |
-| `0x30` | zapis wybranych bajtów konfiguracji: trójki (przesunięcie u16, wartość), nowe CRC, dalej jak `0x02` | ✅ |
+| `0x30` | zapis wybranych bajtów konfiguracji (łatka): w pakiecie długość danych (u16) i CRC całego obrazu po łatce (u16), w danych trójki (przesunięcie od `0x196` u16, wartość); dalej jak `0x02`; tak zapisuje Manager, opis w [`programowanie.md`](programowanie.md) | ✅ 🔌 |
 | `0x31` | włącza albo wyłącza tryb serwisowy (bit 0 `g_sys_flags`, zdarzenie `0x1C`); przy włączeniu wyłącza aktywne wyjścia stref (sygnalizatory ❓); otwiera komendy `0x32`–`0x45` | ✅ |
 | `0x32`–`0x45` | tablica `svc_ext_handlers`, tylko w trybie serwisowym albo przy fladze w ustawieniach | ✅ |
 | `0x4A` | zadanie magistrali `0x4A` z 1 B, status, potem 1500 B ❓ | |
@@ -179,7 +179,9 @@ a sesję otwiera logowanie kodem użytkownika z uprawnieniem do sterowania zdaln
 | `0x35` | sterowanie wyjściami w sesji ❓ |
 | `0x36` | **uzbrojenie stref** w sesji: maska stref, tryb nocny; centrala zawęża ją do uprawnień kodu ✅ |
 | `0x37` | rozbrojenie stref w sesji ❓ |
-| `0x32`, `0x38`–`0x45` | do rozpracowania |
+| `0x41` | odpowiedź 1 B: 1, gdy bit 1 flag pod `0xA000277C` jest zgaszony ❓ |
+| `0x42` | w trybie serwisowym odpowiada 0 i **włącza szyfrowanie portu lokalnego**: dalej dane XMODEM są szyfrowane kluczem TCP/IP jak w trybie zdalnym, a po bezczynności centrala się restartuje; poza trybem serwisowym odpowiada 1 i nic nie zmienia ✅ |
+| `0x32`, `0x38`–`0x40`, `0x43`–`0x45` | do rozpracowania (`0x43` tylko odpowiada 0) |
 
 Szczegóły kryptograficzne logowania jeszcze nie są opisane.
 
@@ -330,10 +332,29 @@ Do rozpracowania w kodzie Managera.
 
 ## Tryb zdalny
 
-Gdy w konfiguracji ustawiony jest odpowiedni bit,
-ta sama obsługa komend działa przez modem (port 3, GPRS),
-ale zamiast XMODEM-a używa ramki `'S'`, 2 bajty długości, dane, suma ✅
-(`FUN_9d04f1a4`, `FUN_9d04f3bc`).
-Przy innym bicie dane przechodzą przez `FUN_9d062524`
-z 16-bajtowym kluczem z konfiguracji ❓ (szyfrowanie kluczem TCP/IP?).
-Do rozpracowania.
+Na polecenie SMS `KKKK connect [host:port]`
+centrala sama łączy się przez GPRS z serwerem
+(RopamBridge albo komputer serwisowy),
+a przez to połączenie działają te same komendy co przez kabel ✅.
+Bez adresu łączy się z `iropam.com:8081`.
+
+Kiedy centrala się zgodzi (`sms_connect`) ✅:
+
+- żadna strefa nie czuwa,
+- kod należy do serwisu (użytkownik 100) albo ❓ do użytkownika „0”,
+- w konfiguracji włączona jest opcja „możliwy zdalny dostęp poprzez TCP/IP”
+  (bit 1 flag `COMM`, [`konfiguracja.md`](konfiguracja.md))
+  albo centrala jest w trybie serwisowym.
+
+Połączenie (`remote_connect`) ✅:
+`AT+CSTT` z APN-em z sekcji `GPRSCFG`, `AT+CIICR`,
+`AT+CIPSTART="TCP"` w trybie przezroczystym,
+krótkie powitanie,
+a potem komendy w ramkach
+`'S'`, długość (u16), dane, CRC-16/XMODEM (u16)
+zamiast XMODEM-a.
+Dane są szyfrowane kluczem TCP/IP z konfiguracji
+(`COMM`, bajty 17–32).
+
+Gdy tryb zdalny się skończy,
+centrala zamyka połączenie i się restartuje ✅.

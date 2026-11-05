@@ -29,11 +29,20 @@ więc warto ustawić własne, mocne.
 ## Zdalne programowanie przez GPRS
 
 Polecenie SMS `connect` każe centrali połączyć się z podanym serwerem,
-a przez to połączenie działają te same komendy co przez kabel
-([tryb zdalny](protokol-serwisowy.md#tryb-zdalny)),
-także zapis konfiguracji ❓.
-Kod uprawniający do tego polecenia
-chroni więc całą konfigurację.
+a przez to połączenie działają te same komendy co przez kabel,
+także zapis konfiguracji
+([tryb zdalny](protokol-serwisowy.md#tryb-zdalny)).
+Centrala słucha go tylko wtedy,
+gdy w konfiguracji włączona jest opcja
+„możliwy zdalny dostęp poprzez TCP/IP”.
+
+- Jeśli z programowania zdalnego nie korzystasz, wyłącz tę opcję.
+  Nowa konfiguracja w OptimaGSM Managerze 2.5 ma ją włączoną.
+- Kod uprawniający do `connect` (serwisowy) chroni całą konfigurację;
+  nie powinien być fabryczny.
+- Zmień fabryczne hasło komunikacji (`111111`).
+  Bez niego nie da się odczytać konfiguracji,
+  w której są m.in. kody użytkowników.
 
 ## Magistrala RopamNET
 
