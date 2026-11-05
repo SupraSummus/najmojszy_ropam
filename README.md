@@ -33,6 +33,8 @@ Co wiemy, a czego nie, opisują pliki w [`docs/`](docs/):
   dziennik zdarzeń (komenda 0x04) i wszystkie kody zdarzeń z firmware'u,
 - [`docs/protokol-serwisowy.md`](docs/protokol-serwisowy.md):
   XMODEM-owy protokół programowania przez gniazdo RJ12,
+- [`docs/programowanie.md`](docs/programowanie.md):
+  jak bezpiecznie zmieniać konfigurację i jak robi to Manager,
 - [`docs/uwagi-bezpieczenstwa.md`](docs/uwagi-bezpieczenstwa.md):
   co warto wiedzieć, podłączając centralę do sieci albo elektroniki,
 - [`docs/zrodla.md`](docs/zrodla.md):

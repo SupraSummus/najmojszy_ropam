@@ -38,6 +38,9 @@ i docelowo zbudować bramkę Wi-Fi (prawdopodobnie ESP32).
 - Tryb ON-LINE na porcie serwisowym RS232TTL wyłącza normalne funkcje centrali
   (np. nie wysyła SMS-ów przy naruszeniu wejść).
   Po każdej sesji serwisowej trzeba sprawdzić, że centrala wróciła do normalnej pracy.
+- Konfigurację zmieniamy tylko przez `tools/ropam_serwis.py zmien|przywroc`
+  ([procedura](docs/programowanie.md)) i tylko za zgodą właściciela.
+  Każdy zapis może wyłączyć wyjścia ustawione przez LogicProcessor.
 - Oryginalne pliki firmware'u Ropamu (`*.flsh`) trzymamy w `firmware/`
   (decyzja właściciela repo; jeśli Ropam zgłosi zastrzeżenia, usuwamy).
   Odszyfrowanych obrazów nie commitujemy, bo każdy odtworzy je `tools/flsh.py`.
