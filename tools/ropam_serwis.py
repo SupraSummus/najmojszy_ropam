@@ -3,7 +3,8 @@
 
 Odtworzony z firmware'u v3.4 i sprawdzony na sprzęcie
 (z OptimaGSM Managerem jako wzorcem).
-Obsługuje wyłącznie operacje odczytu.
+Obsługuje operacje odczytu; wyjątki (testowy SMS, polecenia SMS
+sterujące) wymagają ROPAM_STERUJ=1.
 Celowo nie ma tu komend 0x1F i 0x2F (restart centrali)
 ani 0x05 (kasuje dziennik zdarzeń i testuje wyjścia).
 
@@ -22,6 +23,9 @@ Użycie:
     ropam_serwis.py PORT sms KOD POLECENIE   # komenda 0x19: polecenie SMS kablem
         KOD: 4 cyfry albo plik:ŚCIEŻKA; bez ROPAM_STERUJ=1 tylko polecenia
         odczytujące (SMS_READ_ONLY), bo inne uzbrajają, sterują wyjściami itd.
+    ropam_serwis.py PORT wyslijsms TEKST     # komenda 0x13: prawdziwy SMS
+        z TEKST na pierwszy numer sekcji TEL (albo „NUMER;treść”);
+        tylko z ROPAM_STERUJ=1
     ropam_serwis.py PORT koniec              # od razu kończy sesję serwisową
         HASŁO: 6 znaków, hex:xxxxxxxxxxxx albo plik:ŚCIEŻKA (hex w pliku)
     ROPAM_DEBUG=1 wypisuje każdy bajt na stderr.
@@ -361,6 +365,21 @@ def main():
             sys.exit(f"„{command.split()[0]}” nie jest na liście poleceń "
                      "odczytujących; ROPAM_STERUJ=1, jeśli na pewno")
         print(sms_command(port, code, command))
+    elif cmd == "wyslijsms" and len(sys.argv) >= 4:
+        if os.environ.get("ROPAM_STERUJ") != "1":
+            sys.exit("wyslijsms wysyła prawdziwy SMS; ROPAM_STERUJ=1, "
+                     "jeśli na pewno")
+        text = " ".join(sys.argv[3:])
+        if not text.isascii() or len(text.partition(";")[2] or text) > 160:
+            sys.exit("SMS: tylko ASCII, treść do 160 znaków")
+        text = text.encode("ascii")
+        # svc_dispatch, case 0x13 → FUN_9d02109c: „NUMER;treść” albo sama
+        # treść (wtedy numer z początku sekcji TEL); do kolejki modemu
+        # i czekanie na wynik. Status 1 ma znaczyć „wysłany”,
+        # ale zdarzył się 0 przy SMS-ie, który doszedł.
+        send(port, bytes([0x13]) + text + b"\0")
+        status = int.from_bytes(receive(port, timeout=120)[:4], "little")
+        print(f"status {status} (1 = wysłany; 0 bywa mimo doręczenia)")
     elif cmd == "koniec":
         end_session(port)
         print("sesja serwisowa zakończona")

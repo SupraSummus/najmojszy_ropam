@@ -138,10 +138,10 @@ Pozostałe są w `switch` w `FUN_9d03c3f0`.
 | `0x07` | **wyszukanie modułów**: zadanie magistrali nr 4 zeruje adresy we wszystkich gniazdach i odpytuje magistralę od nowa; odpowiedź to nowa tablica gniazd (198 B); zmienia stan, nie wysyłać bez potrzeby | ✅ |
 | `0x08` | zadanie magistrali nr 14 (ponowne sprawdzenie gniazd modułów ❓), potem tablica gniazd (198 B); zmienia stan | ✅ |
 | `0x0D` | ustawienie zegara: 8 B daty i czasu (`rtc_set`) | ✅ |
-| `0x0F` | wysłanie SMS-a z podaną treścią (gdy modem gotowy), status po wysłaniu | ✅ |
+| `0x0F` | najpewniej testowy e-mail ❓: tekst do kolejki z odbiorcą 1, 30 s czekania, status; bez skonfigurowanej sekcji `SMTP` (bajt `0xA2`) od razu status 0 🔌 | ✅ |
 | `0x10`, `0x11` | stała komenda AT do modemu; włącza (`0x10`) albo wyłącza (`0x11`) dołączanie odpowiedzi modemu do `0x24` | ✅ |
 | `0x12` | wpisanie PIN-u karty SIM do modemu (`AT+CPIN`), opcja „WPISZ KOD PIN” z instrukcji | ✅ |
-| `0x13` | przekazanie tekstu do modułu modemu ❓ | |
+| `0x13` | **wysłanie SMS-a**, opis niżej | ✅ 🔌 |
 | `0x15`, `0x18` | zadania magistrali nr 2 (12 B) i 3 (26 B) z danymi ❓ | |
 | `0x19` | polecenie SMS podane kablem; odpowiedź tekstem jak na SMS | ✅ |
 | `0x1E` | ❓, potem polecenie dla paneli TPR (zadanie magistrali nr 11) | |
@@ -184,6 +184,28 @@ a sesję otwiera logowanie kodem użytkownika z uprawnieniem do sterowania zdaln
 Szczegóły kryptograficzne logowania na razie pomijamy:
 dotyczą słabości opisanej w [`uwagi-bezpieczenstwa.md`](uwagi-bezpieczenstwa.md),
 którą najpierw zgłosimy producentowi.
+
+## Wysłanie SMS-a: komenda `0x13`
+
+Treść komendy to napis z końcowym zerem ✅:
+`NUMER;treść` (numer zaczyna się od `+` albo cyfry)
+albo sama treść,
+i wtedy odbiorcą jest numer z początku sekcji konfiguracji `TEL` ✅.
+Numer do 20 znaków, treść do 160 ✅.
+Centrala odmawia (status 0) bez gotowego modemu
+(bit 1 pierwszego bajtu flag systemowych, `0x0B8` w nagłówku stanu) ✅.
+Wiadomość idzie do kolejki zadania modemu,
+a centrala czeka na wynik kilka do kilkudziesięciu sekund
+(czas z sekcji `TIMES`) i odsyła status ✅.
+Tę samą funkcję wywołuje żądanie `0x35` panelu TPR (z innym czasem czekania) ✅.
+
+Sprawdzone 🔌: sama treść „test bramki” doszła SMS-em na numer z `TEL`,
+choć centrala po ok. 20 s odesłała status 0,
+a w dzienniku zdarzeń nie pojawił się żaden wpis o SMS-ie.
+Status 0 nie znaczy więc, że SMS nie wyszedł;
+sesja serwisowa nie blokuje też wysyłki.
+
+Klient: `ROPAM_STERUJ=1 tools/ropam_serwis.py PORT wyslijsms TEKST`.
 
 ## Polecenia SMS przez kabel: komenda `0x19`
 
