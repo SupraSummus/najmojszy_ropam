@@ -181,9 +181,7 @@ a sesję otwiera logowanie kodem użytkownika z uprawnieniem do sterowania zdaln
 | `0x37` | rozbrojenie stref w sesji ❓ |
 | `0x32`, `0x38`–`0x45` | do rozpracowania |
 
-Szczegóły kryptograficzne logowania na razie pomijamy:
-dotyczą słabości opisanej w [`uwagi-bezpieczenstwa.md`](uwagi-bezpieczenstwa.md),
-którą najpierw zgłosimy producentowi.
+Szczegóły kryptograficzne logowania jeszcze nie są opisane.
 
 ## Wysłanie SMS-a: komenda `0x13`
 

@@ -1,7 +1,7 @@
 # Uwagi o bezpieczeństwie
 
-Słabości widoczne w dokumentacji i firmware'ze OptimaGSM.
-Opisujemy je rzeczowo, żeby posiadacze central wiedzieli, na czym stoją.
+Co warto wiedzieć,
+zanim podłączy się centralę do sieci albo do własnej elektroniki.
 
 Zasada: jeśli znajdziemy błąd,
 który pozwala zaszkodzić cudzej instalacji
@@ -9,69 +9,46 @@ który pozwala zaszkodzić cudzej instalacji
 najpierw zgłaszamy go producentowi,
 a szczegóły publikujemy dopiero po czasie na poprawkę.
 
-## Firmware „chroniony” stałym kluczem XOR
+## Modbus TCP przez AP-IP
 
-Pliki aktualizacji są XOR-owane jednym 16-bajtowym kluczem,
-takim samym we wszystkich znanych wersjach
-([`firmware.md`](firmware.md)).
-To nie jest szyfrowanie ani podpis:
-klucz da się odzyskać statystyką w kilkanaście minut.
-Nie chroni to ani przed analizą, ani przed wgraniem zmodyfikowanego firmware'u,
-a jedynie utrudnia właścicielowi sprawdzenie, co robi jego urządzenie.
-
-Nie wiadomo jeszcze, czy bootloader w jakikolwiek sposób weryfikuje pochodzenie firmware'u. ❓
-
-## Modbus TCP bez autoryzacji
-
-Moduł AP-IP wystawia Modbus TCP na porcie 502
-bez szyfrowania i bez uwierzytelnienia
+Serwer Modbus TCP w module AP-IP (port 502)
+nie ma szyfrowania ani uwierzytelnienia
 ([`modbus-tcp.md`](modbus-tcp.md)).
-Każdy w tej samej sieci może czytać stan wejść
-i, przy włączonym sterowaniu przez WWW/IP, przełączać wyjścia.
-Producent sam to przyznaje i dlatego nie udostępnia przez Modbus czuwania,
-ale zalecane obejście (sterowanie czuwaniem przez wyjście)
-przenosi tę samą lukę na uzbrajanie i rozbrajanie.
+Każdy w tej samej sieci może czytać stan wejść,
+a przy włączonym sterowaniu przez WWW/IP także przełączać wyjścia.
+Jeśli czuwanie jest sterowane wyjściem
+([obejście producenta](modbus-tcp.md#ograniczenia)),
+dotyczy to też uzbrajania i rozbrajania.
 
-W domyślnym trybie Wi-Fi AP-IP działa jako punkt dostępowy (`192.168.10.1`).
-Hasło sieci i jej domyślne ustawienia: do sprawdzenia. ❓
-
-## Tryb ON-LINE wyłącza powiadomienia
-
-Według instrukcji instalacji w trybie ON-LINE (połączenie serwisowe)
-centrala nie wykonuje swoich standardowych funkcji,
-np. nie wysyła SMS-ów przy naruszeniu wejść.
-Nie wiadomo, czy centrala sygnalizuje ten stan w jakikolwiek widoczny sposób,
-ani czy da się go włączyć zdalnie (przez GPRS). ❓
-
-## Zapis konfiguracji bez kodu serwisowego
-
-W protokole serwisowym ([`protokol-serwisowy.md`](protokol-serwisowy.md))
-odczyt konfiguracji wymaga 6-znakowego kodu serwisowego,
-ale w kodzie obsługi zapisu (komenda `0x02`) nie widać żadnej kontroli kodu,
-tylko kontrolę rozmiaru i sumy CRC.
-Jeśli to się potwierdzi, ktoś z fizycznym dostępem do gniazda RJ12
-(wewnątrz obudowy, zwykle chronionej czujnikiem sabotażu)
-może nadpisać całą konfigurację, łącznie z kodami użytkowników,
-bez znajomości kodu serwisowego. ❓
+Port 502 powinien być dostępny tylko w zaufanej sieci,
+bez przekierowania z internetu.
+Gdy AP-IP pracuje jako punkt dostępowy Wi-Fi,
+tę sieć chroni tylko hasło Wi-Fi,
+więc warto ustawić własne, mocne.
 
 ## Zdalne programowanie przez GPRS
 
-Od firmware'u 1.7 komenda SMS `[kod] connect IP:port`
-każe centrali połączyć się z dowolnym serwerem
-i udostępnić mu programowanie.
-Bezpieczeństwo zależy więc od tajności kodu SMS
-i od tego, czy sesja jest dodatkowo uwierzytelniana albo szyfrowana. ❓
+Polecenie SMS `connect` każe centrali połączyć się z podanym serwerem,
+a przez to połączenie działają te same komendy co przez kabel
+([tryb zdalny](protokol-serwisowy.md#tryb-zdalny)),
+także zapis konfiguracji ❓.
+Kod uprawniający do tego polecenia
+chroni więc całą konfigurację.
 
-## Logowanie aplikacji kodem użytkownika
+## Magistrala RopamNET
 
-Komendy dodatkowe protokołu serwisowego (`0x32`–`0x45`)
-pozwalają po zalogowaniu kodem użytkownika m.in. uzbrajać i rozbrajać strefy
-([`protokol-serwisowy.md`](protokol-serwisowy.md#komendy-dodatkowe-0x320x45)).
-Kod ma tylko cztery cyfry,
-a sposób, w jaki logowanie go wykorzystuje,
-pozwala odzyskać go z jednej podsłuchanej wymiany logowania.
-Jeśli ten sam protokół idzie przez sieć (moduł AP-IP, połączenie GPRS),
-podsłuch sieci wystarczyłby do przejęcia kodu. ❓
+Ramki na magistrali RS-485 nie są szyfrowane ani podpisane 🔌.
+Kto ma dostęp do przewodów magistrali,
+może podsłuchać stan systemu, który centrala rozgłasza co 0,56 s 🔌,
+a także kody wpisywane na panelach,
+bo w żądaniach panelu idą one jako zwykły napis ✅
+(na magistrali jeszcze niewidziane ❓).
+Funkcje panelu działają bez kodu 🔌,
+więc urządzenie podające się za panel mogłoby je wywołać ❓.
 
-Zgodnie z zasadą na początku tego pliku
-szczegóły opublikujemy po zgłoszeniu producentowi.
+Dlatego magistralę najlepiej prowadzić w obszarze chronionym.
+Panel albo moduł poza nim (np. przy furtce czy w garażu)
+daje dostęp do przewodów,
+a funkcją takiego panelu nie warto sterować niczego ważnego.
+To samo dotyczy bramki podłączonej do magistrali:
+jej dostęp przez Wi-Fi trzeba chronić tak jak same przewody.

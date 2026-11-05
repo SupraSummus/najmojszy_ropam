@@ -34,7 +34,7 @@ Co wiemy, a czego nie, opisują pliki w [`docs/`](docs/):
 - [`docs/protokol-serwisowy.md`](docs/protokol-serwisowy.md):
   XMODEM-owy protokół programowania przez gniazdo RJ12,
 - [`docs/uwagi-bezpieczenstwa.md`](docs/uwagi-bezpieczenstwa.md):
-  słabości widoczne w dokumentacji i firmware'ze,
+  co warto wiedzieć, podłączając centralę do sieci albo elektroniki,
 - [`docs/zrodla.md`](docs/zrodla.md):
   skąd to wszystko wiemy.
 
