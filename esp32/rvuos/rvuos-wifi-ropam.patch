@@ -95,7 +95,7 @@ index 10866c1..ef3b2c1 100644
 +    }
 +    const struct strona_stan st = { snap.have ? snap.status : 0, snap.panel_have ? snap.panel : 0,
 +                                    ropam_state_age(&snap, p->now - p->seen_at), snap.bytes, snap.frames,
-+                                    snap.states, snap.junk };
++                                    snap.states, snap.junk, strona_profil_instalacji() };
 +    return strona_http(&st, req, len, out, max);
 +}
 +#endif

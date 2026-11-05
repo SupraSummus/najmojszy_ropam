@@ -4,7 +4,9 @@
 # Użycie: esp32/rvuos/zbuduj.sh [PROGRAM] [wgraj] [PORT]
 #   PROGRAM  nazwa pliku bez .c, domyślnie ropam-most;
 #            „bramka” to system Wi-Fi rvuos z klientem centrali i stroną HTTP
-#            (sieć z private/wifi.conf: linie ssid= i pass=)
+#            (sieć z private/wifi.conf: linie ssid= i pass=;
+#            nazwy na stronie z private/konfiguracja.bin albo ROPAM_KONFIGURACJA,
+#            oczekiwane stany z private/bramka.conf, zob. esp32/README.md)
 #   wgraj    po zbudowaniu wgrywa obraz na płytkę
 #   PORT     domyślnie /dev/ttyACM0
 #
@@ -36,6 +38,21 @@ for f in "$here"/*.c "$here"/*.h; do
 done
 
 if [[ $program == bramka ]]; then
+    # Profil instalacji dla strony (tools/profil_bramki.py): tylko w drzewie rvuos, nie w repo.
+    profil=$rvuos/user/ropam/profil.h
+    konf=${ROPAM_KONFIGURACJA-$root/private/konfiguracja.bin}
+    # Plik jest zawsze, także pusty: tylko wtedy make widzi jego zmiany.
+    tmp=$(mktemp)
+    if [[ -n $konf && -f $konf ]]; then
+        oczek=$root/private/bramka.conf
+        python3 "$root/tools/profil_bramki.py" "$konf" $([[ -f $oczek ]] && echo "$oczek") > "$tmp"
+        echo "profil instalacji z $konf"
+    else
+        echo "/* bez profilu instalacji */" > "$tmp"
+        echo "bez profilu instalacji (brak ${konf:-ROPAM_KONFIGURACJA})"
+    fi
+    cmp -s "$tmp" "$profil" || cp "$tmp" "$profil"
+    rm -f "$tmp"
     make -C "$rvuos" BOARD=esp32c6 build/esp32c6/kernel-wifi-esp32c6.bin build/esp32c6/wifi-drv.bin
     if [[ ${2:-} == wgraj ]]; then
         conf=$root/private/wifi.conf

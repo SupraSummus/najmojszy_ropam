@@ -25,7 +25,7 @@ int main(void)
     pn[4] = 0xb1;               /* 12,01 V */
     pn[5] = 0x04;
     pn[9] = 1;                  /* fn */
-    struct strona_stan s = { st, pn, 2500, 900, 70, 7, 0 };
+    struct strona_stan s = { st, pn, 2500, 900, 70, 7, 0, 0 };
     const char *req = "GET / HTTP/1.1\r\nHost: x\r\n\r\n";
     uint32_t n = strona_http(&s, (const uint8_t *)req, (uint32_t)strlen(req), out, sizeof(out));
     out[n] = 0;
@@ -47,7 +47,7 @@ int main(void)
     assert(strstr(body, "\"sesja_serwisowa\":true") && strstr(body, "\"fn\":true"));
     assert(strstr(body, "\"zasilanie_V\":12.01") && strstr(body, "\"naruszone\":[1,3]"));
 
-    struct strona_stan empty = { 0, 0, 0, 0, 0, 0, 0 };
+    struct strona_stan empty = { 0, 0, 0, 0, 0, 0, 0, 0 };
     n = strona_http(&empty, (const uint8_t *)req, (uint32_t)strlen(req), out, sizeof(out));
     out[n] = 0;
     assert(strstr((char *)out, "{\"bajty\":0,\"ramki\":0,"));
@@ -57,6 +57,49 @@ int main(void)
     assert(memcmp(out, "HTTP/1.0 404", 12) == 0);
     n = strona_http(&s, (const uint8_t *)"GET / ", 6, out, 300);
     assert(n > 0 && memcmp(out, "HTTP/1.0 500", 12) == 0); /* za mały bufor: 500, nie ucięta strona */
+
+    /*
+     * Z profilem:
+     * I1 opóźnione w czuwającej S1 i I3 typu 24h naruszone, więc wyróżnione;
+     * I2 w stanie 3, też wyróżnione;
+     * I4 (zał./wył. czuwanie) naruszone w czuwającej S1, ale to nie alarm;
+     * I5 naruszone bez nazwy, pominięte;
+     * O1 oczekiwane włączone, a jest wyłączone; O2 włączone bez nazwy;
+     * S3 bez nazwy rozbrojona, pominięta; S4 bez nazwy, ale czuwa.
+     */
+    static const struct strona_profil profil = {
+        .inputs = { "Drzwi <&>", "Okno \"x\"", "Dym", "Klucz" },
+        .input_type = { 5, 2, 1, 4 },
+        .input_zones = { 1, 2, 0, 1 },
+        .outputs = { "Syrena" },
+        .zones = { "Dom", "Garaż" },
+        .outputs_known = 1,
+        .outputs_expected = 1,
+    };
+    s.profil = &profil;
+    st[0] |= 0x18;
+    st[8] = 0x02;
+    st[0x4C + 8 * 3 + 1] = 0x04;
+    st[0xCE] = 0;
+    n = strona_http(&s, (const uint8_t *)"GET / ", 6, out, sizeof(out));
+    out[n] = 0;
+    assert(strstr((char *)out, "<tr class=\"alarm\"><td>Drzwi &lt;&amp;> <small>opóźniona, S1</small>"));
+    assert(strstr((char *)out, "<tr class=\"alarm\"><td>Okno &quot;x&quot; <small>zwykła, S2</small>"
+                               "</td><td>w normie, stan 3<"));
+    assert(strstr((char *)out, "<tr class=\"alarm\"><td>Dym <small>24h</small></td><td>naruszone<"));
+    assert(strstr((char *)out, "<tr class=\"on\"><td>Klucz"));
+    assert(!strstr((char *)out, "I5") && strstr((char *)out, "inne włączone</td><td>O2<"));
+    assert(strstr((char *)out, "<tr class=\"alarm\"><td>Syrena</td><td>wyłączone (oczekiwane włączone)"));
+    assert(strstr((char *)out, "S2 <small>Garaż") && !strstr((char *)out, "S3"));
+    assert(strstr((char *)out, "S4</td><td>czuwanie"));
+    st[0x4C + 1] = 0;           /* S1 rozbrojona: I1 tylko naruszone */
+    req = "GET /stan.json HTTP/1.1\r\n\r\n";
+    n = strona_http(&s, (const uint8_t *)req, (uint32_t)strlen(req), out, sizeof(out));
+    out[n] = 0;
+    assert(strstr((char *)out, "\"opis\":{\"strefy\":[\"Dom\",\"Garaż\",null,null],\"wejscia\":[{\"nr\":1,"
+                               "\"nazwa\":\"Drzwi <&>\",\"typ\":\"opóźniona\",\"naruszone\":true,\"uwaga\":false},"));
+    assert(strstr((char *)out, "\"nazwa\":\"Okno \\\"x\\\"\""));
+    assert(strstr((char *)out, "\"wyjscia\":[{\"nr\":1,\"nazwa\":\"Syrena\",\"wlaczone\":false,\"uwaga\":true}]}"));
     printf("strona: OK\n");
     return 0;
 }

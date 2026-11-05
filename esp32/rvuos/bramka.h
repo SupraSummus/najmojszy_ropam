@@ -39,6 +39,6 @@ static inline uint32_t ropam_state_age(const struct ropam_snapshot *s, uint32_t 
 #define ROPAM_AREA_SIZE 4096u
 
 #define HTTP_PORT 80u
-#define HTTP_TX_MAX 3072u /* bufor odpowiedzi na połączenie */
+#define HTTP_TX_MAX 6144u /* bufor odpowiedzi na połączenie; strona z profilem ma ok. 3–4 KB */
 
 #endif

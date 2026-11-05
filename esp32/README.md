@@ -69,6 +69,28 @@ Testy na komputerze: `esp32/rvuos/test/tcp-test.c`, `strona-test.c`,
 `szyna-test.c` i `ropam-test.c`.
 Polecenia kompilacji są na ich początku.
 
+### Profil instalacji
+
+Z konfiguracją centrali strona pokazuje nazwy wejść, wyjść i stref,
+a JSON ma je w polu `opis`.
+Wyróżnione są: stan 3, naruszone wejście 24h,
+naruszone wejście alarmowe strefy w pełnym czuwaniu
+i stany inne niż oczekiwane.
+Nienazwane wejścia strona pomija,
+bo ich stały stan wynika z samej polaryzacji.
+
+Profil (`tools/profil_bramki.py`) `zbuduj.sh bramka` robi
+z `private/konfiguracja.bin` (albo `ROPAM_KONFIGURACJA`; pusta: bez profilu)
+i oczekiwań z `private/bramka.conf`, np. `wyjscie.3=wlaczone`.
+Obraz bramki zawiera wtedy nazwy z instalacji.
+Po zmianie konfiguracji trzeba odświeżyć plik
+(kopie w `private/kopie/` są sprzed zapisu):
+
+```sh
+tools/ropam_serwis.py /dev/ttyUSB0 konfiguracja HASŁO private/konfiguracja.bin
+esp32/rvuos/zbuduj.sh bramka wgraj
+```
+
 ## `rvuos/ropam-podsluch.c`: bierny podsłuch magistrali RopamNET
 
 XIAO z transceiverem RS-485 słucha magistrali,
@@ -305,3 +327,7 @@ po kolei:
   brak jej drugiej próby po samych błędach ramki, jak w podsłuchu
   (proces bramki nie widzi błędów UART-u ani matrycy GPIO).
 - Most przez sieć do narzędzi z komputera (TCP już jest, `tcp.c`).
+- Odpowiedź HTTP powstaje w całości w buforze 6 KB (`HTTP_TX_MAX`)
+  na stosie procesu sieciowego;
+  przy ok. 40 nazwanych wejściach strona i JSON dostaną błąd 500.
+  Lepiej wysyłać ją w częściach.

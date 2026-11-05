@@ -4,6 +4,18 @@
 
 #include "strona.h"
 
+#if __has_include("profil.h")
+#include "profil.h" /* zbuduj.sh: z PROFIL albo pusty */
+#endif
+#ifndef PROFIL
+#define PROFIL 0
+#endif
+
+const struct strona_profil *strona_profil_instalacji(void)
+{
+    return PROFIL;
+}
+
 struct sbuf {
     uint8_t *p;
     uint32_t len, max;
@@ -29,6 +41,25 @@ static void snum(struct sbuf *o, uint32_t v)
         v /= 10u;
     } while (v != 0);
     sput(o, &s[i]);
+}
+
+/* Tekst z profilu w HTML-u (json = 0) albo w napisie JSON. */
+static void stext(struct sbuf *o, const char *s, int json)
+{
+    for (; *s; s++) {
+        const char c[2] = { *s, '\0' };
+        if (*s == '&' && !json) {
+            sput(o, "&amp;");
+        } else if (*s == '<' && !json) {
+            sput(o, "&lt;");
+        } else if (*s == '"') {
+            sput(o, json ? "\\\"" : "&quot;");
+        } else if (*s == '\\' && json) {
+            sput(o, "\\\\");
+        } else {
+            sput(o, (uint8_t)*s < 0x20u ? " " : c);
+        }
+    }
 }
 
 static uint64_t le64(const uint8_t *p)
@@ -61,6 +92,66 @@ static const char *zone_state(uint32_t w)
     default:
         return "inny stan";
     }
+}
+
+/* Typy wejść, docs/konfiguracja.md. */
+static const char *input_type(uint32_t t)
+{
+    static const char *const names[] = { "zwykła cicha", "24h", "zwykła", "info", "zał./wył. czuwanie",
+                                         "opóźniona", "opóźniona war.", "licznikowa", "kasująca alarm",
+                                         "zał. czuwanie", "wył. czuwanie" };
+    return t < sizeof(names) / sizeof(names[0]) ? names[t] : "inny typ";
+}
+
+static uint32_t bit(uint64_t mask, uint32_t i)
+{
+    return (uint32_t)(mask >> i) & 1u;
+}
+
+/* Bity 10 i 11 słowa strefy: czuwanie i noc. */
+static uint32_t zone_arming(const uint8_t *st, uint32_t z)
+{
+    return (le32(st + 0x4C + 8 * z) >> 10) & 3u;
+}
+
+/* Typy, które w czuwającej strefie wywołują alarm: cicha, zwykła, opóźnione, licznikowa. */
+#define ZONE_ALARM_TYPES (1u << 0 | 1u << 2 | 1u << 5 | 1u << 6 | 1u << 7)
+
+static int input_unexpected(const struct strona_profil *p, const uint8_t *st, uint32_t i)
+{
+    return bit(p->inputs_known, i) && bit(le64(st), i) != bit(p->inputs_expected, i);
+}
+
+static int output_unexpected(const struct strona_profil *p, const uint8_t *st, uint32_t i)
+{
+    return bit(p->outputs_known, i) && bit(le32(st + 0x30), i) != bit(p->outputs_expected, i);
+}
+
+/*
+ * Czy wejście i (od 0) wymaga uwagi:
+ * stan 3 albo stan inny niż w pliku oczekiwań;
+ * bez oczekiwań także naruszone wejście 24h
+ * i naruszone wejście alarmowe strefy w pełnym czuwaniu.
+ * W czuwaniu nocnym nie wiemy, które wejścia czuwają ❓, więc go pomijamy.
+ */
+static int input_alert(const struct strona_profil *p, const uint8_t *st, uint32_t i)
+{
+    uint32_t type = p->input_type[i];
+    if (bit(le64(st + 8), i) || input_unexpected(p, st, i)) {
+        return 1;
+    }
+    if (bit(p->inputs_known, i) || !bit(le64(st), i)) {
+        return 0;
+    }
+    if (type == 1u) {
+        return 1;
+    }
+    for (uint32_t z = 0; z < 4; z++) {
+        if (bit(p->input_zones[i], z) && zone_arming(st, z) == 1u && type < 32u && bit(ZONE_ALARM_TYPES, type)) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 /* Numery ustawionych bitów jako lista "I1, I5" albo "brak". */
@@ -139,7 +230,89 @@ static void volts(struct sbuf *o, uint32_t centi)
     snum2(o, centi % 100u);
 }
 
-static void html(struct sbuf *o, const struct strona_stan *s)
+static void row(struct sbuf *o, int alert, int on)
+{
+    sput(o, alert ? "<tr class=\"alarm\"><td>" : on ? "<tr class=\"on\"><td>" : "<tr><td>");
+}
+
+/* Wejścia i wyjścia bez profilu: same numery. */
+static void plain_html(struct sbuf *o, const uint8_t *st)
+{
+    uint64_t violated = le64(st), tamper = le64(st + 8);
+    sput(o, "<h2>Wejścia</h2><table><tr");
+    sput(o, violated ? " class=\"alarm\"" : "");
+    sput(o, "><td>naruszone</td><td>");
+    list(o, "I", violated, 48);
+    sput(o, "</td></tr><tr");
+    sput(o, tamper ? " class=\"alarm\"" : "");
+    sput(o, "><td>stan 3 (sabotaż?)</td><td>");
+    list(o, "I", tamper, 48);
+    sput(o, "</td></tr></table><h2>Wyjścia</h2><table><tr><td>włączone</td><td>");
+    list(o, "O", le32(st + 0x30), 32);
+    sput(o, "</td></tr></table>");
+}
+
+/*
+ * Wejścia i wyjścia z nazwami z profilu.
+ * Nienazwane wejścia pomijamy,
+ * bo ich stały stan wynika z samej polaryzacji;
+ * surowe maski są w JSON-ie.
+ * Nienazwane włączone wyjścia pokazujemy zbiorczo.
+ */
+static void named_html(struct sbuf *o, const struct strona_profil *p, const uint8_t *st)
+{
+    uint64_t violated = le64(st), tamper = le64(st + 8);
+    sput(o, "<h2>Wejścia</h2><table>");
+    for (uint32_t i = 0; i < 48; i++) {
+        if (p->inputs[i] == 0) {
+            continue;
+        }
+        uint32_t v = bit(violated, i);
+        row(o, input_alert(p, st, i), (int)v);
+        stext(o, p->inputs[i], 0);
+        sput(o, " <small>");
+        sput(o, input_type(p->input_type[i]));
+        for (uint32_t z = 0; z < 4; z++) {
+            if ((p->input_zones[i] >> z) & 1u) {
+                sput(o, ", S");
+                snum(o, z + 1);
+            }
+        }
+        sput(o, "</small></td><td>");
+        sput(o, v ? "naruszone" : "w normie");
+        sput(o, bit(tamper, i) ? ", stan 3" : "");
+        if (input_unexpected(p, st, i)) {
+            sput(o, v ? " (oczekiwane w normie)" : " (oczekiwane naruszone)");
+        }
+        sput(o, "</td></tr>");
+    }
+    uint32_t outputs = le32(st + 0x30), named_out = 0;
+    sput(o, "</table><h2>Wyjścia</h2><table>");
+    for (uint32_t i = 0; i < 32; i++) {
+        if (p->outputs[i] == 0) {
+            continue;
+        }
+        named_out |= 1u << i;
+        uint32_t on = bit(outputs, i);
+        int unexpected = output_unexpected(p, st, i);
+        row(o, unexpected, (int)on);
+        stext(o, p->outputs[i], 0);
+        sput(o, "</td><td>");
+        sput(o, on ? "włączone" : "wyłączone");
+        if (unexpected) {
+            sput(o, on ? " (oczekiwane wyłączone)" : " (oczekiwane włączone)");
+        }
+        sput(o, "</td></tr>");
+    }
+    if (outputs & ~named_out) {
+        sput(o, "<tr><td>inne włączone</td><td>");
+        list(o, "O", outputs & ~named_out, 32);
+        sput(o, "</td></tr>");
+    }
+    sput(o, "</table>");
+}
+
+static void html(struct sbuf *o, const struct strona_stan *s, const struct strona_profil *p)
 {
     sput(o, "<!doctype html><html lang=\"pl\"><head><meta charset=\"utf-8\">"
            "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
@@ -150,7 +323,7 @@ static void html(struct sbuf *o, const struct strona_stan *s)
            "body{font:15px/1.4 system-ui,sans-serif;background:var(--bg);color:var(--fg);"
            "margin:0 auto;padding:1em;max-width:40em}"
            "table{border-collapse:collapse;width:100%}td{padding:.35em .5em;border-bottom:1px solid var(--line)}"
-           ".on{background:var(--on)}.alarm{background:var(--alarm)}.dim{color:var(--dim)}"
+           ".on{background:var(--on)}.alarm{background:var(--alarm)}.dim,small{color:var(--dim)}"
            "</style></head><body><h1>Stan centrali</h1>");
     if (s->status == 0) {
         sput(o, "<p>Jeszcze nie ma stanu z magistrali.</p>");
@@ -167,24 +340,28 @@ static void html(struct sbuf *o, const struct strona_stan *s)
         sput(o, "<h2>Strefy</h2><table>");
         for (uint32_t z = 0; z < 4; z++) {
             uint32_t w = le32(st + 0x4C + 8 * z);
-            sput(o, ((w >> 10) & 3u) ? "<tr class=\"on\"><td>S" : "<tr><td>S");
+            const char *name = p != 0 ? p->zones[z] : 0;
+            if (p != 0 && name == 0 && (w & 0xFu) == 3u && zone_arming(st, z) == 0) {
+                continue; /* bez wejść z profilu i rozbrojona */
+            }
+            row(o, 0, (int)zone_arming(st, z));
+            sput(o, "S");
             snum(o, z + 1);
+            if (name != 0) {
+                sput(o, " <small>");
+                stext(o, name, 0);
+                sput(o, "</small>");
+            }
             sput(o, "</td><td>");
             sput(o, zone_state(w));
             sput(o, "</td></tr>");
         }
-        uint64_t violated = le64(st), tamper = le64(st + 8);
-        sput(o, "</table><h2>Wejścia</h2><table><tr");
-        sput(o, violated ? " class=\"alarm\"" : "");
-        sput(o, "><td>naruszone</td><td>");
-        list(o, "I", violated, 48);
-        sput(o, "</td></tr><tr");
-        sput(o, tamper ? " class=\"alarm\"" : "");
-        sput(o, "><td>stan 3 (sabotaż?)</td><td>");
-        list(o, "I", tamper, 48);
-        sput(o, "</td></tr></table><h2>Wyjścia</h2><table><tr><td>włączone</td><td>");
-        list(o, "O", le32(st + 0x30), 32);
-        sput(o, "</td></tr></table>");
+        sput(o, "</table>");
+        if (p != 0) {
+            named_html(o, p, st);
+        } else {
+            plain_html(o, st);
+        }
     }
     if (s->panel != 0) {
         const uint8_t *pn = s->panel;
@@ -207,7 +384,66 @@ static void html(struct sbuf *o, const struct strona_stan *s)
     sput(o, ".</p></body></html>");
 }
 
-static void json(struct sbuf *o, const struct strona_stan *s)
+/* Napis JSON z tekstu profilu. */
+static void jtext(struct sbuf *o, const char *s)
+{
+    sput(o, "\"");
+    stext(o, s, 1);
+    sput(o, "\"");
+}
+
+/* "opis": nazwy z profilu ze stanem; "uwaga" jak wyróżnienie na stronie. */
+static void named_json(struct sbuf *o, const struct strona_profil *p, const uint8_t *st)
+{
+    sput(o, ",\"opis\":{\"strefy\":[");
+    for (uint32_t z = 0; z < 4; z++) {
+        sput(o, z ? "," : "");
+        if (p->zones[z] == 0) {
+            sput(o, "null");
+        } else {
+            jtext(o, p->zones[z]);
+        }
+    }
+    sput(o, "],\"wejscia\":[");
+    uint64_t violated = le64(st);
+    const char *sep = "";
+    for (uint32_t i = 0; i < 48; i++) {
+        if (p->inputs[i] == 0) {
+            continue;
+        }
+        uint32_t v = bit(violated, i);
+        sput(o, sep);
+        sep = ",";
+        sput(o, "{\"nr\":");
+        snum(o, i + 1);
+        sput(o, ",\"nazwa\":");
+        jtext(o, p->inputs[i]);
+        sput(o, ",\"typ\":");
+        jtext(o, input_type(p->input_type[i]));
+        sput(o, v ? ",\"naruszone\":true" : ",\"naruszone\":false");
+        sput(o, input_alert(p, st, i) ? ",\"uwaga\":true}" : ",\"uwaga\":false}");
+    }
+    sput(o, "],\"wyjscia\":[");
+    uint32_t outputs = le32(st + 0x30);
+    sep = "";
+    for (uint32_t i = 0; i < 32; i++) {
+        if (p->outputs[i] == 0) {
+            continue;
+        }
+        uint32_t on = bit(outputs, i);
+        sput(o, sep);
+        sep = ",";
+        sput(o, "{\"nr\":");
+        snum(o, i + 1);
+        sput(o, ",\"nazwa\":");
+        jtext(o, p->outputs[i]);
+        sput(o, on ? ",\"wlaczone\":true" : ",\"wlaczone\":false");
+        sput(o, output_unexpected(p, st, i) ? ",\"uwaga\":true}" : ",\"uwaga\":false}");
+    }
+    sput(o, "]}");
+}
+
+static void json(struct sbuf *o, const struct strona_stan *s, const struct strona_profil *p)
 {
     sput(o, "{\"bajty\":");
     snum(o, s->bytes);
@@ -237,6 +473,9 @@ static void json(struct sbuf *o, const struct strona_stan *s)
         json_list(o, le64(st + 8), 48);
         sput(o, ",\"wyjscia\":");
         json_list(o, le32(st + 0x30), 32);
+        if (p != 0) {
+            named_json(o, p, st);
+        }
     }
     if (s->panel != 0) {
         sput(o, ",\"panel\":{\"zasilanie_V\":");
@@ -266,10 +505,10 @@ uint32_t strona_http(const struct strona_stan *s, const uint8_t *req, uint32_t l
     struct sbuf body = { out + HEAD, 0, max > HEAD ? max - HEAD : 0 };
     const char *type, *status = "200 OK";
     if (starts(req, len, "GET / ") || starts(req, len, "GET /index")) {
-        html(&body, s);
+        html(&body, s, s->profil);
         type = "text/html; charset=utf-8";
     } else if (starts(req, len, "GET /stan.json")) {
-        json(&body, s);
+        json(&body, s, s->profil);
         type = "application/json; charset=utf-8";
     } else {
         sput(&body, "nie ma\n");
