@@ -93,8 +93,8 @@ centrala uzupełnia nazwą modułu z `g_module_names`
 | `0x22` | Modem zarejestrowany w sieci |  |
 | `0x23` | GPRS |  |
 | `0x24` | Zaklocanie sygnalu GSM |  |
-| `0x25` | Restart centrali: | przyczyna restartu ❓ |
-| `0x26` | Calkowita utrata zasilania |  |
+| `0x25` | Restart centrali: | przyczyna restartu ❓; 1 po włączeniu zasilania 🔌 |
+| `0x26` | Calkowita utrata zasilania | bajty 8–12: czas zaniku (rok − 2000, miesiąc, dzień, godzina, minuta) 🔌; zapisywane po ponownym włączeniu, z czasem włączenia w bajtach 0–5 |
 | `0x27` | Blad zegara centrali |  |
 | `0x28` | Zegar centrali ustawiony |  |
 | `0x29` | Zasilanie AC230V | 1 = brak, 0 = powrót |

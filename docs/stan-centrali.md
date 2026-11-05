@@ -67,6 +67,10 @@ Co w tym czasie centrala robi inaczej (z kodu ✅):
 Do podglądu to wystarcza.
 Integracja, która ma działać bez żadnego wpływu na centralę,
 powinna iść inną drogą (magistrala RopamNET albo AP-IP).
+Na magistrali centrala sama rozgłasza ten sam nagłówek stanu (`0x000`–`0x0DB`)
+co 0,56 s ([`protokol-ramek.md`](protokol-ramek.md#rozgłaszany-stan-komenda-0x10)) 🔌;
+z odpowiedzi na `0x24` brakuje wtedy tylko dalszej części
+(wartości linii wejść, tablica modułów i reszta).
 
 ## Komendy `0x1F` i `0x2F`: restart
 
@@ -99,12 +103,12 @@ po niej przychodzi druga transmisja z odpowiedzią modemu na komendę AT ✅.
 | `0x038` | 8 | dwie wartości 32-bitowe ❓ |
 | `0x040` | 2 | wartość 16-bitowa ❓ |
 | `0x044` | 8 | struktura chroniona muteksem ❓ |
-| `0x04C` | 32 | stan stref: 4 × 8 B; młodsze 4 bity = stan (3 = rozbrojona 🔌, 5 = odliczanie wyjścia ❓), bit 10 = czuwanie, bit 11 = noc ✅ |
+| `0x04C` | 32 | stan stref: 4 × 8 B; młodsze 4 bity = stan (3 = rozbrojona 🔌, 5 = odliczanie wyjścia ❓), bit 10 = czuwanie, bit 11 = noc ✅; drugie słowo (u32) to licznik w ms, który maleje o 1000 na sekundę także poza odliczaniem 🔌 |
 | `0x06C` | 12 | ❓ |
 | `0x078` | 64 | ❓ |
 | `0x0B8` | 16 | flagi systemowe, w tym tryb lokalny/zdalny ✅ |
 | `0x0C8` | 8 | kopia RAM-u od `0xA0000154`: bajty 0–3 zmieniają się przy każdym odczycie (licznik ❓), pod `0x0CE` u16 `g_sys_flags` (bit 1 = sesja serwisowa) ✅ 🔌 |
-| `0x0D0` | 8 | czas ❓ |
+| `0x0D0` | 8 | zegar centrali: rok − 2000, miesiąc, dzień, godzina, minuta, sekunda 🔌, dalej 2 B ❓ |
 | `0x0D8` | 4 | ❓ |
 
 Maski są little-endian, bit 0 to wejście (wyjście) 1.

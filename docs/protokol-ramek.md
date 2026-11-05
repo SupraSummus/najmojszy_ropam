@@ -2,17 +2,20 @@
 
 Odtworzony z firmware'u OptimaGSM v3.4
 (adresy funkcji odnoszą się do obrazu załadowanego pod `0x9D000000`).
-Nic z tego nie zostało jeszcze sprawdzone na prawdziwym kablu.
-Oznaczenia: ✅ wynika wprost z kodu, ❓ wniosek albo przypuszczenie.
+Na porcie 0 (magistrala RopamNET) sprawdzony biernym podsłuchem
+([`esp32/rvuos/ropam-podsluch.c`](../esp32/README.md)).
+Oznaczenia: ✅ wynika wprost z kodu, 🔌 sprawdzone na magistrali,
+❓ wniosek albo przypuszczenie.
 
-Implementacja: [`tools/ropamnet.py`](../tools/ropamnet.py).
+Implementacja: [`tools/ropamnet.py`](../tools/ropamnet.py),
+parser strumieniowy w C: [`esp32/rvuos/szyna.c`](../esp32/rvuos/szyna.c).
 
 ## UART-y centrali
 
 Wszystkie cztery porty są ustawione identycznie ✅:
 115200 b/s przy zegarze peryferiów 80 MHz
 (`UARTSetDataRate(id, 80000000, 115200)` w `FUN_9d050f58`).
-Format znaku zakładamy 8N1 ❓.
+Na magistrali 115200 b/s 8N1 🔌.
 
 | Port w kodzie | UART PIC32 | Adres SFR | Bufor RX | Przeznaczenie |
 |---|---|---|---|---|
@@ -56,7 +59,8 @@ Ten sam format działa na portach 0 i 1 ✅
 | `0x01` | zła suma CRC, centrala ponawia ✅ |
 | brak | po limicie czasu centrala traktuje to jak `0x02` („noack”) i ponawia ✅ |
 
-Centrala ponawia ramkę najwyżej 3 razy ✅.
+Centrala ponawia ramkę najwyżej 3 razy ✅,
+co ok. 100 ms 🔌.
 Liczniki z tego mechanizmu są w raporcie diagnostycznym
 `Frames ok:%u noack:%u badcrc:%u lost:%.1f%%` ✅.
 
@@ -73,6 +77,39 @@ odbiera resztę, sprawdza CRC
 i sama odsyła bajt potwierdzenia (`0x03` albo `0x01`) ✅.
 Na porcie 0 odczekuje przy tym kilkaset mikrosekund ❓
 i przełącza kierunek RS-485.
+
+### Wymiana na magistrali 🔌
+
+Jedna wymiana z modułem wygląda tak:
+
+```
+centrala: [adres] [komenda] [długość] [dane] [CRC]
+moduł:    03                                         potwierdzenie zapytania
+moduł:    AA [komenda] [długość] [dane] [CRC]        odpowiedź
+centrala: 03                                         potwierdzenie odpowiedzi
+```
+
+Moduł potwierdza zapytanie po ok. 0,1–0,5 ms,
+a odpowiedź zaczyna się 1–3,5 ms po końcu zapytania.
+Komenda odpowiedzi jest ta sama co zapytania.
+Rozgłoszeń (adres `0xFE`) nikt nie potwierdza.
+Gdy moduł milczy, centrala po ok. 100 ms wysyła to samo zapytanie,
+w sumie 3 razy;
+to są przypadki `noack` w raporcie diagnostycznym.
+
+Ramki, potwierdzenia i kolejne wymiany idą jedna za drugą,
+często bez przerwy między bajtami,
+a w co ok. dwudziestym rozgłoszeniu `0x10` jest w środku ramki przerwa 0,5–12 ms.
+Odbiornik nie może więc dzielić strumienia po ciszy.
+Trzeba robić tak jak `parse_stream` w `ropamnet.py`:
+od każdej pozycji sprawdzić, czy zaczyna się tam ramka
+(długość z trzeciego bajtu, potem CRC),
+a jeśli nie, wziąć bajt za potwierdzenie albo za śmieć.
+
+Polaryzacja: na modułach z transceiverem RS-485 napisy A i B
+bywają odwrotne niż na centrali;
+przy odwrotnym podłączeniu odbiornik widzi linię w spoczynku jako stan niski
+i same błędy ramki.
 
 ### CRC
 
@@ -92,6 +129,15 @@ for b in bajty:
 To **nie jest** standardowe CRC-16/MODBUS:
 tam bit 0 testuje się przed przesunięciem.
 Kolejność potwierdza asembler (`srl`, potem `andi …, 1`) ✅.
+
+Skutek tej kolejności:
+bit 0 każdego bajtu przepada przy pierwszym przesunięciu,
+zanim cokolwiek od niego zależy,
+więc CRC wychodzi takie samo dla bajtów różniących się tylko bitem 0
+(np. `b0 f0 08 01 02 03 …` i `b0 f0 08 01 02 02 …` mają to samo CRC).
+Mimo to tak właśnie liczą centrala i moduły 🔌:
+wszystkie ramki z podsłuchu mają poprawne CRC w tym wariancie,
+a żadna w wariancie CRC-16/MODBUS.
 
 ## Znane komendy
 
@@ -158,10 +204,17 @@ Zadanie magistrali (`task_bus`) w pętli ✅:
 4. co 410 obiegów rozgłasza ramkę `0x3C` na adres `0xFE`;
 5. między obiegami czeka ok. 100 ms (`os_delay(100)`).
 
+Na magistrali wygląda to inaczej, niż sugerują te liczby 🔌:
+każdy aktywny moduł jest odpytywany co ok. 0,5–0,56 s,
+rozgłoszenie `0x10` przychodzi co 0,56 s (z rzadkimi przerwami do ok. 5 s),
+a `0x3C` co ok. 4,65 s.
+Albo liczniki obiegów liczą coś innego, niż zakładaliśmy,
+albo źle odczytaliśmy ich progi ❓.
+
 ### Rozgłaszany stan: komenda `0x10`
 
 Dane ramki to dokładnie 220-bajtowy nagłówek stanu (`status_header`),
-ten sam co na początku odpowiedzi na komendę serwisową `0x24` ✅:
+ten sam co na początku odpowiedzi na komendę serwisową `0x24` ✅ 🔌:
 maski stanów wejść, maska wyjść, stan stref, flagi i czas
 (opis pól w [`stan-centrali.md`](stan-centrali.md)).
 Adres `0xFE` oznacza rozgłoszenie bez potwierdzenia.
@@ -170,9 +223,25 @@ Adres `0xFE` oznacza rozgłoszenie bez potwierdzenia.
 żeby znać pełny stan systemu**,
 bez żadnej sesji serwisowej i bez wpływu na pracę centrali.
 
+Sprawdzone 🔌: stan odczytany komendą `0x24` zgadza się z rozgłoszeniem
+co do bajtu, poza polami, które zmieniają się w każdej ramce
+(liczniki stref, `0x0C8`–`0x0CB`, zob. [`stan-centrali.md`](stan-centrali.md)).
+Maska naruszeń wejść zmienia się w rozgłoszeniu na żywo,
+a w czasie sesji serwisowej widać w nim flagę sesji (bit 1 pod `0x0CE`).
+
+### Rozgłoszenie `0x3C`
+
+100 B danych, co ok. 4,65 s 🔌; w ciągu kilku minut się nie zmieniały.
+Układ, jaki widać 🔌:
+8 wpisów po 8 B (`fa d8 ff 00 00 00 00 00`), 16 B `ff` i 20 B zer.
+`fa d8 ff` jako liczba 24-bitowa ze znakiem (little-endian) to −9990,
+czyli może −999,0 jako „brak wartości”,
+np. dla ośmiu czujników albo termostatów ❓.
+
 ## Panel TPR (gniazda 1–4)
 
-Obsługa jednego panelu (`tpr_service`) ✅:
+Obsługa jednego panelu (`tpr_service`) ✅,
+odpytanie i odpowiedź `0x11` (10 B) widać na magistrali co ok. 0,56 s 🔌:
 
 1. centrala wysyła odpytanie `[adres][0x2B][0]`;
 2. panel odpowiada ramką `[0xAA][komenda][długość][dane][CRC]`
@@ -183,7 +252,7 @@ Obsługa jednego panelu (`tpr_service`) ✅:
 
 | Komenda | Dane od panelu | Działanie centrali | Odpowiedź |
 |---|---|---|---|
-| `0x11` | 10 B | stan panelu: m.in. napięcie zasilania, sabotaż obudowy, wejścia panelu | brak |
+| `0x11` | 10 B | stan panelu (niżej) | brak |
 | `0x12` | kod | weryfikacja kodu | 2 B: numer użytkownika i uprawnienia |
 | `0x13` | kod, … | ❓, zdarzenie `0x62` w dzienniku | 1 B |
 | `0x14` | kod, … | ❓, zdarzenie `0x64` | 1 B |
@@ -195,7 +264,28 @@ Obsługa jednego panelu (`tpr_service`) ✅:
 | `0x1E` | – | ❓ | 3 B |
 | `0x20` | zakres | odczyt dziennika zdarzeń, rekordy po 19 B | seria ramek |
 | `0x23`, `0x24` | podkomenda | przesyłanie ustawień panelu w obie strony (wiele ramek, kontynuacja `'!'`) | |
-| `0x25`–`0x40` | | do rozpracowania | |
+| `0x35` | tekst | wysłanie SMS-a: `NUMER;treść` albo sama treść na numer z sekcji `TEL`, jak komenda serwisowa `0x13` ✅ | |
+| `0x25`–`0x40` (reszta) | | do rozpracowania | |
+
+### Stan panelu: `0x11`
+
+Panel odpowiada nim na każde odpytanie, w którym nie ma innego żądania 🔌.
+Układ 10 B danych z `tpr_service` ✅ i z magistrali 🔌:
+
+| Bajt | Treść |
+|---|---|
+| 0–1 | u16 LE: wartość linii pierwszego wejścia panelu (do tablicy wejść centrali); ta sama liczba jest w odpowiedzi na `0x24` 🔌 |
+| 2–3 | u16 LE: wartość linii drugiego wejścia panelu |
+| 4–5 | u16 LE: napięcie zasilania panelu w 0,01 V (np. `b1 04` = 12,01 V) 🔌; poniżej 8,50 V centrala ustawia flagę niskiego napięcia, powyżej 8,70 V ją gasi ✅ |
+| 6 | bit 0: do flag gniazda (bit 2), najpewniej sabotaż obudowy ❓ |
+| 7 | ❓, stale ok. 26: może temperatura panelu w °C ❓ |
+| 8 | ❓ |
+| 9 | bit 0: stan przekazywany do LogicProcessora jako zmienna `fn` panelu ✅; bit 1: do flag gniazda (bit 6) |
+
+Bit 0 bajtu 9 to najpewniej stan funkcji panelu 🔌:
+ustawia się po jej wywołaniu, bez osobnego żądania i bez kodu.
+Wyjście sterowane taką funkcją włącza dopiero logika centrali,
+a maska wyjść `0x030` w rozgłaszanym stanie się przy tym nie zmienia ❓.
 
 ### Kody i strefy
 
@@ -221,7 +311,14 @@ a po 150 ms ramkę właściwą ✅ (`FUN_9d053b2c`).
 
 ## Kontroler AP-AERO (gniazdo 6)
 
-Odczytane z firmware'u (`aero_service`), niesprawdzone na kablu ❓.
+Odczytane z firmware'u (`aero_service`).
+Na magistrali 🔌: zapytanie `0xDD` (8 B) i odpowiedź 21 B co ok. 0,56 s,
+`0xDF` (8 B) z odpowiedzią 103 B co ok. 6,8 s,
+a `0xDC` (1 B) co ok. 38 s.
+Kontroler potrafi nie odpowiadać na `0xDC` wcale:
+centrala próbuje wtedy 3 razy co ok. 100 ms i rezygnuje,
+co nabija `noack` i licznik błędów AP-AERO w raporcie diagnostycznym.
+Odpowiedź `0xDD` ma 21 B, a nie 22, jak wynikałoby z opisu bajtów niżej ❓.
 Kontroler obsługuje do 16 urządzeń radiowych Aero (czujki) jako wejścia systemu
 oraz piloty.
 Adres modułu to bajt 0 gniazda 6;
@@ -277,7 +374,9 @@ Dalej wejścia radiowe przechodzą tę samą logikę co wejścia płyty.
 
 ## Ekspander wejść EXP-I8-RN (gniazda 11, 12)
 
-Odczytane z firmware'u (`expi_service`), niesprawdzone na kablu ❓.
+Odczytane z firmware'u (`expi_service`).
+Na magistrali 🔌: zapytanie `0xDD` z jednym bajtem `0x00` co ok. 0,5 s,
+odpowiedź 18 B (o bajt dłuższa niż opis niżej ❓).
 
 Zapytanie `0xDD`, 1 B: `0x00`.
 Odpowiedź `0xDD`:
@@ -321,8 +420,11 @@ Przy zdarzeniach wysyła SMS-y z ustawień ❓.
 ## Do zrobienia
 
 - Moduły w gniazdach 5, 8, 10 i 13–17.
-- AP-AERO, EXP-I8-RN i zasilacz: sprawdzić na kablu; znaczenie bajtów oznaczonych ❓.
+- AP-AERO, EXP-I8-RN: znaczenie bajtów oznaczonych ❓ (zapisy z magistrali już są);
+  zasilacz: sprawdzić na magistrali.
 - Dokładny układ żądań `0x12`–`0x1D` (pola przed kodem) i komend `0x25`–`0x40`.
-- Weryfikacja na kablu: pasywny podsłuch RS-485 z 115200 8N1,
-  sprawdzenie CRC narzędziem `ropamnet.py check`
-  i porównanie ramki `0x10` z odpowiedzią na `0x24`.
+- Zawartość rozgłoszenia `0x3C`.
+- Dlaczego okresy na magistrali nie zgadzają się
+  z licznikami obiegów z firmware'u.
+- Ruch na magistrali przy obsłudze panelu (kod, uzbrojenie):
+  zapisy będą zawierały kody, więc tylko lokalnie.
