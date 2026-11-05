@@ -5,6 +5,8 @@ Odtworzony z firmware'u v3.4 i sprawdzony na sprzęcie
 (z OptimaGSM Managerem jako wzorcem).
 Obsługuje operacje odczytu; wyjątki (testowy SMS, polecenia SMS
 sterujące) wymagają ROPAM_STERUJ=1.
+Zmiana konfiguracji (zmien, przywroc) wymaga ROPAM_ZAPIS=1
+i potwierdzenia; zasady w docs/programowanie.md.
 Celowo nie ma tu komend 0x1F i 0x2F (restart centrali)
 ani 0x05 (kasuje dziennik zdarzeń i testuje wyjścia).
 
@@ -27,6 +29,11 @@ Użycie:
         z TEKST na pierwszy numer sekcji TEL (albo „NUMER;treść”);
         tylko z ROPAM_STERUJ=1
     ropam_serwis.py PORT koniec              # od razu kończy sesję serwisową
+    ropam_serwis.py PORT zmien HASŁO POLE=WARTOŚĆ …
+        świeży odczyt, kopia w private/kopie/, różnica; z ROPAM_ZAPIS=1
+        i po wpisaniu „tak” zapis (0x30 albo 0x02) i odczyt sprawdzający;
+        pola: ropam_config.py PLIK pola
+    ropam_serwis.py PORT przywroc HASŁO PLIK # wgranie kopii (0x02), jak wyżej
         HASŁO: 6 znaków, hex:xxxxxxxxxxxx albo plik:ŚCIEŻKA (hex w pliku)
     ROPAM_DEBUG=1 wypisuje każdy bajt na stderr.
 
@@ -40,20 +47,16 @@ import time
 
 import serial
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import ropam_config as rc  # noqa: E402
+
 SOH, STX, EOT, ACK, NAK, CAN = 0x01, 0x02, 0x04, 0x06, 0x15, 0x18
 BLK64 = 0x19  # rozszerzenie Ropamu: blok 64 B
 CRC_REQ = ord("C")
 SIZES = {BLK64: 64, SOH: 128, STX: 1024}
 
 
-def crc16_xmodem(data):
-    crc = 0
-    for b in data:
-        crc ^= b << 8
-        for _ in range(8):
-            crc = (crc << 1) ^ 0x1021 if crc & 0x8000 else crc << 1
-            crc &= 0xFFFF
-    return crc
+crc16_xmodem = rc.crc16_xmodem
 
 
 def block_size(total):
@@ -276,6 +279,184 @@ def read_log(port):
     return count, records[:min(count, 1000)]
 
 
+def parse_password(arg):
+    """Hasło komunikacji: 6 znaków, hex:… albo plik:ŚCIEŻKA (hex w pliku)."""
+    if arg.startswith("plik:"):
+        with open(arg[5:]) as f:
+            arg = "hex:" + f.read().strip()
+    code = (bytes.fromhex(arg[4:]) if arg.startswith("hex:")
+            else arg.encode("ascii"))
+    if len(code) != 6:
+        raise ValueError("hasło komunikacji ma 6 bajtów")
+    return code
+
+
+def read_config(port, code):
+    """Komenda 0x03: status, potem konfiguracja (z dopełnieniem XMODEM)."""
+    send(port, bytes([0x03]) + code)
+    status = int.from_bytes(receive(port)[:4], "little")
+    if status != 1:
+        raise PermissionError(
+            f"centrala nie wydała konfiguracji, status {status}"
+            + (" (złe hasło)" if status == 2 else ""))
+    return receive(port, timeout=120)
+
+
+def read_config_exact(port, code):
+    """Konfiguracja do zapisu: tylko format, który znamy (firmware 3.4).
+
+    Rozmiar formatu jest zapisany na początku bloba.
+    """
+    data = read_config(port, code)[:rc.CONFIG_SIZE]
+    if (int.from_bytes(data[:4], "little") != rc.CONFIG_SIZE
+            or not rc.Config(data).crc_ok):
+        raise RuntimeError("konfiguracja w nieznanym formacie"
+                           " albo ze złym CRC")
+    return data
+
+
+PATCH_MAX = 66  # dane łatki 0x30 muszą mieć mniej niż 199 B
+PATCH_END = rc.DATA_START + 52000  # łatka sięga tylko danych sekcji
+
+
+def finish_write(port):
+    """Statusy po zapisie (0x02, 0x30).
+
+    Po udanym zapisie centrala może odesłać jeszcze do dwóch statusów,
+    po wysłaniu ustawień modułom (docs/programowanie.md).
+    Gdy skończyła, od razu zaprasza 'C' do następnej komendy;
+    gdy milczy, czeka na nasze 'C' z kolejnym statusem.
+    """
+    statuses = [int.from_bytes(receive(port, timeout=60)[:4], "little")]
+    while statuses[0] == 1 and len(statuses) < 3:
+        if wait_for(port, {CRC_REQ}, 1.5) is not None:
+            break
+        statuses.append(int.from_bytes(receive(port, timeout=60)[:4],
+                                       "little"))
+    return statuses
+
+
+def write_patch(port, changed, new):
+    """Komenda 0x30: trójki (przesunięcie od DATA_START, wartość),
+    a w pakiecie komendy CRC całego obrazu po łatce.
+
+    Centrala łata obraz konfiguracji, który wczytał nasz odczyt 0x03;
+    gdy coś go w międzyczasie zmieniło, CRC się nie zgodzi.
+    """
+    triples = b"".join((i - rc.DATA_START).to_bytes(2, "little")
+                       + bytes([new[i]]) for i in changed)
+    crc = rc.crc16_xmodem(new[:rc.CONFIG_SIZE - 4])
+    send(port, bytes([0x30]) + len(triples).to_bytes(2, "little")
+         + crc.to_bytes(2, "little"))
+    send(port, triples)
+    return finish_write(port)
+
+
+def write_full(port, new):
+    """Komenda 0x02: cała konfiguracja."""
+    send(port, bytes([0x02]) + rc.CONFIG_SIZE.to_bytes(2, "little"))
+    send(port, bytes(new), timeout=10)
+    return finish_write(port)
+
+
+def save_backup(data):
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    folder = os.environ.get("ROPAM_KOPIE",
+                            os.path.join(root, "private", "kopie"))
+    os.makedirs(folder, exist_ok=True)
+    stem = os.path.join(folder, time.strftime("konfiguracja_%Y%m%d_%H%M%S"))
+    for n in range(100):
+        path = stem + (f"_{n}" if n else "") + ".bin"
+        try:
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            continue
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+        return path
+    raise FileExistsError(stem)
+
+
+def confirm_write():
+    if os.environ.get("ROPAM_ZAPIS") != "1":
+        print("na sucho: nic nie zapisano (ROPAM_ZAPIS=1, żeby zapisać)")
+        return False
+    try:
+        answer = input("Zapisać to do centrali? Wpisz „tak”: ")
+    except EOFError:
+        answer = ""
+    if answer.strip() != "tak":
+        print("przerwane, nic nie zapisano")
+        return False
+    return True
+
+
+def program(port, code, old, new, full=False, confirm=confirm_write):
+    """Różnica, potwierdzenie, zapis, odczyt sprawdzający.
+
+    Bez `full` zapisuje tylko, gdy jest różnica, i wybiera łatkę,
+    jeśli się da. Zwraca True, gdy centrala ma dokładnie `new`.
+    """
+    diff = rc.show_differences(old, new)
+    if not diff and not full:
+        print("nic do zapisania")
+        return True
+    if not confirm():
+        return False
+    crc = range(rc.CRC_OFFSET, rc.CRC_OFFSET + 2)
+    changed = [i for i, *_ in diff if i not in crc]
+    if full or len(changed) > PATCH_MAX or any(
+            not rc.DATA_START <= i < PATCH_END for i in changed):
+        print("zapis całości (0x02)")
+        statuses = write_full(port, new)
+    else:
+        print(f"łatka (0x30), bajtów: {len(changed)}")
+        statuses = write_patch(port, changed, new)
+    print("statusy:", statuses)
+    # Odczyt także po odmowie: wczytuje plik do RAM centrali od nowa,
+    # więc obraz zepsuty odrzuconym zapisem znika.
+    comm = rc.Config(bytes(new)).sections["COMM"][0]
+    try:
+        back = read_config_exact(port, bytes(new[comm + 1:comm + 7]))
+    except PermissionError:  # zapis odrzucony, a hasło miało się zmienić
+        back = read_config_exact(port, code)
+    if back == bytes(new):
+        print("odczyt po zapisie: zgodny z zamierzonym")
+        return True
+    if back == bytes(old):
+        print("odczyt po zapisie: konfiguracja BEZ ZMIAN (zapis odrzucony)")
+    else:
+        print("odczyt po zapisie: INNY niż zamierzony, różnice:")
+        rc.show_differences(new, back)
+    return False
+
+
+def outputs_mask(port):
+    """Maska włączonych wyjść 1–32 ze stanu (0x24, przesunięcie 0x30)."""
+    send(port, bytes([0x24]))
+    data = receive(port)[:STATUS_SIZE]
+    if wait_for(port, {CRC_REQ}, 1.5) is None:
+        receive(port)  # opcjonalna odpowiedź modemu
+    return int.from_bytes(data[0x30:0x34], "little")
+
+
+def report_outputs(before, after):
+    """Zapis konfiguracji przepisuje stan wyjść z ustawień,
+    a programu LogicProcessora nie uruchamia od nowa:
+    wyjście ustawione przez program przy starcie (albo SMS-em)
+    może zostać wyłączone (docs/programowanie.md).
+    """
+    if before == after:
+        print("wyjścia bez zmian")
+        return
+    off = bits(before & ~after, 32)
+    on = bits(after & ~before, 32)
+    print("UWAGA: zmieniły się wyjścia po zapisie;"
+          + (f" wyłączone: {off}" if off else "")
+          + (f" włączone: {on}" if on else ""))
+    print("  sprawdź, czy trzeba je przywrócić (panel, SMS, restart centrali)")
+
+
 def bits(value, count):
     return [i + 1 for i in range(count) if value >> i & 1]
 
@@ -294,6 +475,37 @@ def print_status(data):
     print("wartości linii wejść (surowe):", analog)
     flags = int.from_bytes(data[0xCE:0xD0], "little")
     print("sesja serwisowa przed tym odczytem:", "tak" if flags & 2 else "nie")
+
+
+def change_config(port, cmd, password, args):
+    """zmien / przywroc: argumenty sprawdzone, zanim ruszymy centralę."""
+    code = parse_password(password)
+    if cmd == "zmien":
+        changes = rc.parse_changes(args)
+    else:
+        with open(args[0], "rb") as f:
+            restored = f.read()
+        if (len(restored) != rc.CONFIG_SIZE
+                or not rc.Config(restored).crc_ok):
+            raise ValueError(f"{args[0]}: to nie jest poprawna konfiguracja"
+                             " w znanym formacie")
+    try:
+        old = read_config_exact(port, code)
+        print("kopia obecnej konfiguracji:", save_backup(old))
+        if cmd == "zmien":
+            new = rc.apply_changes(old, changes)
+        else:
+            new = restored
+            # Nagłówek (wersja Managera) może się różnić, katalog sekcji nie.
+            if (new[0x0E:rc.DATA_START] != old[0x0E:rc.DATA_START]
+                    or new[rc.NSECTIONS_OFFSET] != old[rc.NSECTIONS_OFFSET]):
+                raise ValueError("inny katalog sekcji niż w centrali")
+        outputs = outputs_mask(port)
+        ok = program(port, code, old, new, full=(cmd == "przywroc"))
+        report_outputs(outputs, outputs_mask(port))
+        return ok
+    finally:
+        end_session(port)
 
 
 def main():
@@ -324,21 +536,7 @@ def main():
                 f.write(data)
         print_status(data)
     elif cmd == "konfiguracja" and len(sys.argv) == 5:
-        arg = sys.argv[3]
-        if arg.startswith("plik:"):
-            with open(arg[5:]) as f:
-                arg = "hex:" + f.read().strip()
-        code = (bytes.fromhex(arg[4:]) if arg.startswith("hex:")
-                else arg.encode("ascii"))
-        if len(code) != 6:
-            sys.exit("kod musi mieć 6 bajtów")
-        send(port, bytes([0x03]) + code)
-        # Najpierw status (1 = OK, 2 = złe hasło), potem osobno konfiguracja.
-        status = int.from_bytes(receive(port)[:4], "little")
-        if status != 1:
-            sys.exit(f"centrala nie wydała konfiguracji, status {status}"
-                     + (" (złe hasło)" if status == 2 else ""))
-        data = strip_padding(receive(port, timeout=120))
+        data = strip_padding(read_config(port, parse_password(sys.argv[3])))
         with open(sys.argv[4], "wb") as f:
             f.write(data)
         print(f"zapisano {len(data)} B")
@@ -380,6 +578,9 @@ def main():
         send(port, bytes([0x13]) + text + b"\0")
         status = int.from_bytes(receive(port, timeout=120)[:4], "little")
         print(f"status {status} (1 = wysłany; 0 bywa mimo doręczenia)")
+    elif cmd in ("zmien", "przywroc") and len(sys.argv) >= 5:
+        sys.exit(0 if change_config(port, cmd, sys.argv[3], sys.argv[4:])
+                 else 1)
     elif cmd == "koniec":
         end_session(port)
         print("sesja serwisowa zakończona")
@@ -391,4 +592,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (PermissionError, ValueError, RuntimeError, TimeoutError) as e:
+        sys.exit(f"błąd: {e}")
