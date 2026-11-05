@@ -17,12 +17,20 @@ esp32/rvuos/zbuduj.sh ropam-most wgraj   # buduje i wgrywa na /dev/ttyACM0
 `zbuduj.sh bramka wgraj` buduje system Wi-Fi rvuos z dwoma dodatkami
 (łatki `rvuos-net-tcp.patch` i `rvuos-wifi-ropam.patch`):
 
-- klient centrali `ropam` (`ropam-klient.c` nad `ropam.c`),
-  osobny proces z UART0, który co 5 s czyta stan (komenda `0x24`),
-  zamyka sesję serwisową i publikuje migawkę w pamięci dzielonej z procesem sieciowym;
+- klient magistrali `ropam` (`szyna-klient.c` nad `szyna.c`),
+  osobny proces z UART0, który tylko słucha RopamNET
+  (połączenia jak przy podsłuchu, niżej)
+  i publikuje w pamięci dzielonej z procesem sieciowym
+  ostatnie rozgłoszenie stanu (`0x10`) i ostatni raport panelu (`0x11`);
 - serwer HTTP na porcie 80 w procesie sieciowym (`tcp.c`, `strona.c`):
-  `/` to strona ze strefami, wejściami i wyjściami, `/stan.json` to samo dla programów.
+  `/` to strona z zegarem centrali, strefami, wejściami, wyjściami,
+  zasilaniem panelu i jego klawiszem funkcyjnym (`fn`),
+  `/stan.json` to samo dla programów.
   Tylko podgląd, bez żadnych poleceń.
+
+Stan jest świeży co ok. 0,56 s, a centrala nie wchodzi w sesję serwisową 🔌.
+Bramka nie zmienia liczników straconych ramek
+w raporcie diagnostycznym centrali 🔌.
 
 Sieć bierze z `private/wifi.conf` (poza gitem), linie `ssid=` i `pass=`;
 skrypt dopisuje `run=0`, żeby system działał bez końca.
@@ -31,42 +39,131 @@ Adres IP widać w logu startu, który skrypt pokazuje przez minutę.
 
 Jak to jest ułożone:
 
-- Proces główny ustawia TX UART0 na D8 zaraz po starcie,
-  zanim system zacznie łączyć się z siecią.
-  Póki D8 nie nadaje, wejście RX centrali wisi w powietrzu,
-  a centrala bierze to za śmieci i potem odrzuca nasze bloki
-  (odpowiada `C` i `CAN` zamiast `ACK`).
-  Z pinami ustawianymi dopiero w procesie `ropam`,
-  ok. 10 s po starcie, odczyty się nie udawały 🔌.
-- Proces `ropam` dostaje UART0, licznik czasu (`BOOT_CAP_COUNTER`)
-  i obszar migawki, czyli razem z kodem, danymi i gniazdem
-  wszystkie osiem regionów, jakie może mieć proces.
-  Na bajty czeka budzikiem po 2 ms,
+- Proces główny zaraz po starcie, zanim system zacznie łączyć się z siecią,
+  ustawia RE/DE (D8) nisko i DI (D9) wysoko,
+  mierzy poziom spoczynkowy RO
+  i w razie potrzeby odwraca wejście U0RXD w matrycy GPIO
+  (w logu startu: `root: ropam bus RX inverted` albo `straight`).
+  Proces `ropam` tego zrobić nie może,
+  bo z kodem, danymi, gniazdem, UART0, licznikiem czasu (`BOOT_CAP_COUNTER`)
+  i obszarem migawki ma już wszystkie osiem regionów, jakie może mieć proces.
+- Proces `ropam` na bajty czeka budzikiem po 2 ms
+  (kolejka UART0 mieści ok. 11 ms magistrali),
   a czas liczy z licznika, nie z liczby drzemek.
-- Sesję serwisową kończy zaraz po odebraniu stanu,
-  na pierwszym zaproszeniu `C` po transmisji.
-  Centrala jest w trybie ON-LINE ok. 0,26 s na każdy odczyt 🔌,
-  czyli ok. 5% czasu przy odczycie co 5 s (`ROPAM_EVERY_MS` w `bramka.h`).
-  W tym czasie pomija m.in. synchronizację wyjść z koncentratorem
-  i nadrabia ją w następnym przebiegu odpytywania
-  (szczegóły w [`docs/stan-centrali.md`](../docs/stan-centrali.md)).
-- Przy włączonym Wi-Fi na linii odbioru (D7) pojawiają się zakłócenia 🔌:
-  UART zgłasza `GLITCH_DET` i błędy ramki,
-  a bez Wi-Fi tego nie widać.
-  Klient włącza filtr odbioru UART-u (impulsy krótsze niż ok. 1,6 µs),
-  który usuwa krótkie zakłócenia;
-  rzadkie dłuższe zakłócenia odbiór XMODEM przeżywa jednym ponowieniem bloku
-  (zob. „Odporność na zakłócenia” w [`docs/protokol-serwisowy.md`](../docs/protokol-serwisowy.md)).
-  Krótszy przewód do D7, mniejszy opornik szeregowy (1 kΩ zamiast 10 kΩ)
-  i antena zewnętrzna (`antenna=ufl`) z dala od przewodów
-  powinny zakłóceń ograniczyć ❓.
+  Migawkę publikuje po każdej ramce stanu albo panelu, a poza tym co sekundę,
+  żeby liczniki (`bajty`, `ramki`, `stany`, `smieci`) było widać,
+  nawet gdy nic się nie składa w ramki.
+- Klient włącza filtr odbioru UART-u (impulsy krótsze niż ok. 1,6 µs):
+  przy podłączeniu do portu serwisowego radio XIAO wprowadzało
+  na linię odbioru krótkie zakłócenia 🔌.
+  Za transceiverem RS-485 bajty śmieci jak dotąd się nie pojawiają 🔌.
 - Obszar na dane procesów potomnych (`ROOM_SIZE`) jest powiększony do 64 KiB:
   proces sieciowy z TCP ma 32 KiB, `ropam` 16 KiB, echo i zegar po 8 KiB.
 
-Testy na komputerze: `esp32/rvuos/test/tcp-test.c`, `strona-test.c`
-i `ropam-test.c` (klient z udawaną centralą i udawanym czasem;
-sprawdza m.in., że flaga sesji gaśnie także po nieudanym odczycie).
+Wcześniejsza wersja czytała stan przez port serwisowy
+(`ropam-klient.c`, w historii gita, nad `ropam.c`:
+komenda `0x24` co 5 s z zamknięciem sesji).
+Sam klient protokołu serwisowego (`ropam.c`) został dla `ropam-stan.c` i testów.
+
+Testy na komputerze: `esp32/rvuos/test/tcp-test.c`, `strona-test.c`,
+`szyna-test.c` i `ropam-test.c`.
 Polecenia kompilacji są na ich początku.
+
+## `rvuos/ropam-podsluch.c`: bierny podsłuch magistrali RopamNET
+
+XIAO z transceiverem RS-485 słucha magistrali,
+dzieli strumień na ramki, potwierdzenia i śmieci
+i każdą pozycję wypisuje na konsolę USB jako linię 🔌:
+
+```
+3.495700 A 1: 03
+3.495901 R 15: aa 11 0a 00 fa 00 fa b1 04 00 1a 03 00 63 10
+```
+
+Kolejno: czas pierwszego bajtu od startu, rodzaj, liczba bajtów,
+błędy UART-u i bajty.
+Rodzaj to `R` (ramka z poprawnym CRC), `A` (bajt potwierdzenia) albo `?` (śmieci).
+Błędy: `!R` błąd ramki, `!Z` zakłócenie, `!P` przepełniona kolejka.
+Co 10 s linia `#` z licznikami.
+
+Ramek nie da się oddzielać ciszą:
+idą jedna za drugą razem z potwierdzeniami, często bez przerwy 🔌
+(zob. [`docs/protokol-ramek.md`](../docs/protokol-ramek.md)).
+Parser (`szyna.c`) robi więc to samo co `parse_stream` w `tools/ropamnet.py`:
+od każdej pozycji próbuje ramki o długości z trzeciego bajtu i sprawdza CRC.
+Na resztę ramki czeka do 3 s ciszy.
+
+Program **niczego nie nadaje**:
+RE/DE trzyma stale w stanie niskim, DI w wysokim,
+a do UART-u nigdy nie pisze.
+Centrala co ok. 0,56 s rozgłasza w ramce `0x10` cały nagłówek stanu,
+ten sam co w odpowiedzi na komendę serwisową `0x24` 🔌,
+więc podsłuch daje stan bez sesji serwisowej i bez trybu ON-LINE.
+
+```sh
+esp32/rvuos/zbuduj.sh ropam-podsluch wgraj
+stty -F /dev/ttyACM0 raw -echo
+cat /dev/ttyACM0 | tee szyna.log | python3 -u tools/ropamnet.py log - [KONFIGURACJA]
+```
+
+`ropamnet.py log` opisuje ramki (adres, komenda, kierunek),
+a z plikiem konfiguracji dekoduje rozgłaszany stan z nazwami wejść i stref.
+Zapis może zawierać kody użytkowników wpisywane na panelach:
+nie trafia do repo bez przejrzenia (zob. `CLAUDE.md`).
+
+Polaryzację program wykrywa sam (`rs485.c`):
+przy starcie przez ok. 0,2 s mierzy poziom spoczynkowy RO,
+a gdy linia jest głównie w stanie niskim, odwraca wejście U0RXD w matrycy GPIO.
+Napisy A i B na modułach z transceiverem bywają odwrotne niż na centrali 🔌,
+więc „zamienione A i B” to tu zwykła sytuacja, a nie usterka.
+Jeśli przez 10 s są same błędy ramki, program próbuje drugiej polaryzacji.
+
+Polecenia z komputera (znaki wysłane na `/dev/ttyACM0`), oba tylko do odbioru:
+`i` odwraca wejście RX,
+a `p` przez 2 s mierzy na RO najkrótsze impulsy i poziom spoczynkowy
+(czas bitu przy 115200 b/s to 8,68 µs).
+
+Konsola wysyła pełne pakiety USB po 64 B
+(drobne, wysyłane po każdej pozycji, nie nadążały za magistralą)
+i ponawia wysłanie, gdy pakiet utknął przed otwarciem portu przez komputer;
+bez tego konsola potrafiła zamilknąć na dobre.
+
+Logika ramek i CRC jest w `szyna.c`, test na komputerze w `test/szyna-test.c`.
+
+### Połączenia z transceiverem
+
+| Transceiver | XIAO ESP32-C6 |
+|---|---|
+| RO | **D7** (GPIO17, U0RXD) |
+| RE i DE (razem) | **D8** (GPIO19), stale niski: odbiór |
+| DI | **D9** (GPIO20), stale wysoki |
+| VCC | **3V3** |
+| GND | GND, wspólna z `GND` magistrali |
+| A, B | `A`, `B` magistrali centrali |
+
+Przed podłączeniem do działającej magistrali:
+
+- **Zasilanie 3,3 V.**
+  Popularne moduły z MAX485 są opisane na 5 V;
+  zasilone z 5 V dają na RO 5 V, a ESP32-C6 ich nie toleruje.
+  MAX3485 (albo inny układ na 3,3 V) jest właściwy;
+  MAX485 przy 3,3 V zwykle działa, ale poza katalogiem ❓.
+- **Terminator.**
+  Takie moduły mają zwykle na płytce opornik 120 Ω między A i B.
+  Magistrala ma już terminację na końcach (zworka `JT1` w centrali),
+  a trzeci terminator w środku linii obciąża nadajniki centrali i modułów
+  ponad normę EIA-485.
+  Jeśli podsłuch nie jest na końcu linii, opornik trzeba wylutować.
+- **RE/DE od resetu do startu programu.**
+  W tym czasie (rozruch ROM-u i jądra) D8 nie jest sterowany
+  i może być podciągany do góry ❓,
+  a wysoki DE włącza nadajnik, który zagłusza magistralę.
+  Do podsłuchu najpewniej połączyć RE/DE wprost z masą, bez D8;
+  jeśli ma zostać na D8, to z opornikiem ok. 10 kΩ do masy.
+- Zamiana A z B niczego nie uszkodzi, a program sam ją wykrywa (wyżej).
+
+Linia startowa podaje odczytane poziomy D8, D9 i D7;
+D8 musi mieć 0.
 
 ## `rvuos/ropam-stan.c`: odczyt stanu na konsolę USB
 
@@ -201,6 +298,10 @@ po kolei:
 
 ## Dalej
 
-- Podsłuch magistrali RS-485 (wymaga transceivera, np. MAX3485, tylko na odbiór);
-  narzędzie do analizy zapisu: `tools/ropamnet.py analizuj`.
+- Otwieranie furtki z bramki: najpierw ustalić, gdzie jest wyjście zamka
+  (np. pełny odczyt `0x24` w czasie otwarcia),
+  potem bezpieczna droga sterowania (zob. `docs/protokol-ramek.md`, stan panelu).
+- Bramka wykrywa polaryzację tylko przy starcie;
+  brak jej drugiej próby po samych błędach ramki, jak w podsłuchu
+  (proces bramki nie widzi błędów UART-u ani matrycy GPIO).
 - Most przez sieć do narzędzi z komputera (TCP już jest, `tcp.c`).

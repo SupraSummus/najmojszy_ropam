@@ -94,11 +94,56 @@ static void json_list(struct sbuf *o, uint64_t mask, uint32_t count)
     sput(o, "]");
 }
 
+static uint32_t le16(const uint8_t *p)
+{
+    return (uint32_t)p[0] | (uint32_t)p[1] << 8;
+}
+
+/* Dwie cyfry z zerem z przodu. */
+static void snum2(struct sbuf *o, uint32_t v)
+{
+    if (v < 10u) {
+        sput(o, "0");
+    }
+    snum(o, v);
+}
+
+/* Zegar centrali z nagłówka stanu (0x0D0): rok − 2000, miesiąc, dzień, godzina, minuta, sekunda. */
+static void clock_text(struct sbuf *o, const uint8_t *st)
+{
+    const uint8_t *c = st + 0xD0;
+    sput(o, "20");
+    snum2(o, c[0]);
+    sput(o, "-");
+    snum2(o, c[1]);
+    sput(o, "-");
+    snum2(o, c[2]);
+    sput(o, " ");
+    snum2(o, c[3]);
+    sput(o, ":");
+    snum2(o, c[4]);
+    sput(o, ":");
+    snum2(o, c[5]);
+}
+
+static int service_session(const uint8_t *st)
+{
+    return (le16(st + 0xCE) >> 1) & 1u;
+}
+
+/* Napięcie w 0,01 V jako „12.01”. */
+static void volts(struct sbuf *o, uint32_t centi)
+{
+    snum(o, centi / 100u);
+    sput(o, ".");
+    snum2(o, centi % 100u);
+}
+
 static void html(struct sbuf *o, const struct strona_stan *s)
 {
     sput(o, "<!doctype html><html lang=\"pl\"><head><meta charset=\"utf-8\">"
            "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-           "<meta http-equiv=\"refresh\" content=\"10\"><title>Centrala</title><style>"
+           "<meta http-equiv=\"refresh\" content=\"5\"><title>Centrala</title><style>"
            ":root{--bg:#fff;--fg:#222;--dim:#777;--line:#ddd;--on:#e6f2e6;--alarm:#f8e0e0}"
            "@media (prefers-color-scheme:dark){:root{--bg:#181818;--fg:#ddd;--dim:#999;--line:#333;"
            "--on:#1f3320;--alarm:#42201f}}"
@@ -108,12 +153,18 @@ static void html(struct sbuf *o, const struct strona_stan *s)
            ".on{background:var(--on)}.alarm{background:var(--alarm)}.dim{color:var(--dim)}"
            "</style></head><body><h1>Stan centrali</h1>");
     if (s->status == 0) {
-        sput(o, "<p>Jeszcze nie ma odczytu.</p>");
+        sput(o, "<p>Jeszcze nie ma stanu z magistrali.</p>");
     } else {
         const uint8_t *st = s->status;
-        sput(o, "<p class=\"dim\">Odczyt sprzed ");
+        sput(o, "<p class=\"dim\">Zegar centrali ");
+        clock_text(o, st);
+        sput(o, ", stan sprzed ");
         snum(o, s->age_ms / 1000u);
-        sput(o, " s; odświeżanie co 10 s; tylko podgląd.</p><h2>Strefy</h2><table>");
+        sput(o, " s; odświeżanie co 5 s; tylko podgląd.</p>");
+        if (service_session(st)) {
+            sput(o, "<p class=\"alarm\">Centrala jest w sesji serwisowej (tryb ON-LINE).</p>");
+        }
+        sput(o, "<h2>Strefy</h2><table>");
         for (uint32_t z = 0; z < 4; z++) {
             uint32_t w = le32(st + 0x4C + 8 * z);
             sput(o, ((w >> 10) & 3u) ? "<tr class=\"on\"><td>S" : "<tr><td>S");
@@ -129,36 +180,51 @@ static void html(struct sbuf *o, const struct strona_stan *s)
         list(o, "I", violated, 48);
         sput(o, "</td></tr><tr");
         sput(o, tamper ? " class=\"alarm\"" : "");
-        sput(o, "><td>sabotaż</td><td>");
+        sput(o, "><td>stan 3 (sabotaż?)</td><td>");
         list(o, "I", tamper, 48);
         sput(o, "</td></tr></table><h2>Wyjścia</h2><table><tr><td>włączone</td><td>");
         list(o, "O", le32(st + 0x30), 32);
         sput(o, "</td></tr></table>");
     }
-    sput(o, "<p class=\"dim\">Odczyty: ");
-    snum(o, s->reads);
-    sput(o, ", błędy: ");
-    snum(o, s->errors);
-    if (s->last_error != 0) {
-        sput(o, " (ostatni odczyt nieudany, kod -");
-        snum(o, (uint32_t)-s->last_error);
-        sput(o, ")");
+    if (s->panel != 0) {
+        const uint8_t *pn = s->panel;
+        sput(o, "<h2>Panel</h2><table><tr><td>zasilanie</td><td>");
+        volts(o, le16(pn + 4));
+        sput(o, " V</td></tr><tr");
+        sput(o, (pn[9] & 1u) ? " class=\"on\"" : "");
+        sput(o, "><td>klawisz funkcyjny (fn)</td><td>");
+        sput(o, (pn[9] & 1u) ? "aktywny" : "nie");
+        sput(o, "</td></tr></table>");
     }
+    sput(o, "<p class=\"dim\">Magistrala: bajtów ");
+    snum(o, s->bytes);
+    sput(o, ", ramek ");
+    snum(o, s->frames);
+    sput(o, ", rozgłoszeń stanu ");
+    snum(o, s->states);
+    sput(o, ", bajtów śmieci ");
+    snum(o, s->junk);
     sput(o, ".</p></body></html>");
 }
 
 static void json(struct sbuf *o, const struct strona_stan *s)
 {
-    sput(o, "{\"odczyty\":");
-    snum(o, s->reads);
-    sput(o, ",\"bledy\":");
-    snum(o, s->errors);
-    sput(o, s->last_error != 0 ? ",\"ostatni_blad\":-" : ",\"ostatni_blad\":");
-    snum(o, (uint32_t)-s->last_error);
+    sput(o, "{\"bajty\":");
+    snum(o, s->bytes);
+    sput(o, ",\"ramki\":");
+    snum(o, s->frames);
+    sput(o, ",\"stany\":");
+    snum(o, s->states);
+    sput(o, ",\"smieci\":");
+    snum(o, s->junk);
+    sput(o, ",\"wiek_ms\":");
+    snum(o, s->age_ms);
     if (s->status != 0) {
         const uint8_t *st = s->status;
-        sput(o, ",\"wiek_ms\":");
-        snum(o, s->age_ms);
+        sput(o, ",\"zegar\":\"");
+        clock_text(o, st);
+        sput(o, "\",\"sesja_serwisowa\":");
+        sput(o, service_session(st) ? "true" : "false");
         sput(o, ",\"strefy\":[");
         for (uint32_t z = 0; z < 4; z++) {
             sput(o, z ? ",\"" : "\"");
@@ -171,6 +237,13 @@ static void json(struct sbuf *o, const struct strona_stan *s)
         json_list(o, le64(st + 8), 48);
         sput(o, ",\"wyjscia\":");
         json_list(o, le32(st + 0x30), 32);
+    }
+    if (s->panel != 0) {
+        sput(o, ",\"panel\":{\"zasilanie_V\":");
+        volts(o, le16(s->panel + 4));
+        sput(o, ",\"fn\":");
+        sput(o, (s->panel[9] & 1u) ? "true" : "false");
+        sput(o, "}");
     }
     sput(o, "}");
 }
